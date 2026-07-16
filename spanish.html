@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>¡Hola Amigo! — Spanish Adventure</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg1: #ffd166;
+    --bg2: #ff9e6d;
+    --card: #ffffff;
+    --ink: #37306b;
+    --accent: #06d6a0;
+    --accent2: #118ab2;
+    --pink: #ef476f;
+    --purple: #9b5de5;
+  }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: "Comic Sans MS", "Chalkboard SE", "Marker Felt", sans-serif;
+    background: linear-gradient(160deg, var(--bg1), var(--bg2));
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  h1 { font-size: clamp(1.6rem, 6vw, 2.6rem); text-align: center; }
+  h2 { font-size: clamp(1.2rem, 4.5vw, 1.8rem); text-align: center; }
+
+  .screen {
+    display: none;
+    width: 100%;
+    max-width: 640px;
+    padding: 16px;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    animation: pop-in .35s ease;
+  }
+  .screen.active { display: flex; }
+
+  @keyframes pop-in {
+    from { transform: scale(.92); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+
+  /* ---------- Top bar ---------- */
+  #topbar {
+    width: 100%;
+    max-width: 640px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px 0;
+  }
+  #starCount {
+    background: var(--card);
+    border-radius: 999px;
+    padding: 6px 16px;
+    font-size: 1.3rem;
+    font-weight: bold;
+    box-shadow: 0 4px 0 rgba(0,0,0,.12);
+  }
+  .home-btn {
+    background: var(--card);
+    border: none;
+    border-radius: 999px;
+    padding: 6px 16px;
+    font-size: 1.3rem;
+    cursor: pointer;
+    box-shadow: 0 4px 0 rgba(0,0,0,.12);
+    font-family: inherit;
+  }
+  .home-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.12); }
+
+  /* ---------- Menu ---------- */
+  #mascot { font-size: 5rem; animation: bounce 2s infinite ease-in-out; }
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0) rotate(-4deg); }
+    50%      { transform: translateY(-14px) rotate(4deg); }
+  }
+
+  .cat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    width: 100%;
+  }
+  .cat-btn {
+    background: var(--card);
+    border: none;
+    border-radius: 22px;
+    padding: 18px 8px;
+    font-size: 1.1rem;
+    font-family: inherit;
+    color: var(--ink);
+    cursor: pointer;
+    box-shadow: 0 6px 0 rgba(0,0,0,.15);
+    transition: transform .1s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .cat-btn .big { font-size: 2.6rem; }
+  .cat-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,.15); }
+
+  .mode-row { display: flex; gap: 12px; width: 100%; }
+  .mode-btn {
+    flex: 1;
+    border: none;
+    border-radius: 22px;
+    padding: 14px 8px;
+    font-size: 1.15rem;
+    font-family: inherit;
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 6px 0 rgba(0,0,0,.2);
+    transition: transform .1s;
+  }
+  .mode-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,.2); }
+  .mode-btn.selected { outline: 5px solid #fff; }
+  #modeLearn { background: var(--accent2); }
+  #modeQuiz  { background: var(--pink); }
+
+  /* ---------- Flashcard (Learn mode) ---------- */
+  .flashcard {
+    background: var(--card);
+    border-radius: 28px;
+    width: 100%;
+    padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 8px 0 rgba(0,0,0,.15);
+  }
+  .flashcard .emoji { font-size: 6rem; line-height: 1.1; }
+  .flashcard .spanish { font-size: 2.2rem; font-weight: bold; color: var(--purple); }
+  .flashcard .english { font-size: 1.2rem; opacity: .7; }
+
+  .round-btn {
+    border: none;
+    border-radius: 999px;
+    width: 84px;
+    height: 84px;
+    font-size: 2.4rem;
+    cursor: pointer;
+    color: #fff;
+    box-shadow: 0 6px 0 rgba(0,0,0,.2);
+    transition: transform .1s;
+    font-family: inherit;
+  }
+  .round-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,.2); }
+  .round-btn.listen { background: var(--accent2); }
+  .round-btn.mic    { background: var(--pink); }
+  .round-btn.mic.listening { animation: pulse 1s infinite; background: var(--accent); }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.12); }
+  }
+
+  .btn-row { display: flex; gap: 20px; align-items: center; justify-content: center; }
+  .btn-label { font-size: .85rem; text-align: center; margin-top: 4px; }
+
+  .nav-row { display: flex; gap: 12px; width: 100%; }
+  .nav-btn {
+    flex: 1;
+    background: var(--card);
+    border: none;
+    border-radius: 18px;
+    padding: 12px;
+    font-size: 1.2rem;
+    font-family: inherit;
+    color: var(--ink);
+    cursor: pointer;
+    box-shadow: 0 5px 0 rgba(0,0,0,.15);
+  }
+  .nav-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.15); }
+
+  #speakResult {
+    min-height: 2.2rem;
+    font-size: 1.25rem;
+    text-align: center;
+    font-weight: bold;
+  }
+  #speakResult.good { color: #067a5b; }
+  #speakResult.tryagain { color: var(--pink); }
+
+  /* ---------- Quiz mode ---------- */
+  .quiz-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    width: 100%;
+  }
+  .quiz-option {
+    background: var(--card);
+    border: none;
+    border-radius: 24px;
+    font-size: 4rem;
+    padding: 22px 8px;
+    cursor: pointer;
+    box-shadow: 0 6px 0 rgba(0,0,0,.15);
+    transition: transform .1s;
+    font-family: inherit;
+  }
+  .quiz-option:active { transform: translateY(4px); }
+  .quiz-option.correct { background: var(--accent); animation: wiggle .5s; }
+  .quiz-option.wrong   { background: #ffb3c1; animation: shake .4s; }
+  @keyframes wiggle {
+    0%,100% { transform: rotate(0); } 25% { transform: rotate(-6deg); } 75% { transform: rotate(6deg); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); }
+  }
+
+  #quizPrompt { font-size: 1.3rem; text-align: center; min-height: 2rem; }
+  #progressBar {
+    width: 100%;
+    height: 16px;
+    background: rgba(255,255,255,.5);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  #progressFill {
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    border-radius: 999px;
+    transition: width .4s ease;
+  }
+
+  /* ---------- Celebration ---------- */
+  #bigStars { font-size: 3rem; letter-spacing: .2em; min-height: 3.6rem; }
+
+  .confetti {
+    position: fixed;
+    top: -20px;
+    font-size: 1.6rem;
+    pointer-events: none;
+    animation: fall linear forwards;
+    z-index: 50;
+  }
+  @keyframes fall {
+    to { transform: translateY(110vh) rotate(720deg); }
+  }
+
+  #micWarning {
+    background: #fff3cd;
+    border-radius: 14px;
+    padding: 10px 14px;
+    font-size: .9rem;
+    display: none;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <button class="home-btn" id="homeBtn">🏠</button>
+  <div id="starCount">⭐ 0</div>
+</div>
+
+<!-- ============ MENU ============ -->
+<div class="screen active" id="menuScreen">
+  <div id="mascot">🦜</div>
+  <h1>¡Hola Amigo!</h1>
+  <h2>Spanish Adventure</h2>
+
+  <div class="mode-row">
+    <button class="mode-btn selected" id="modeLearn">📖 Learn &amp; Speak</button>
+    <button class="mode-btn" id="modeQuiz">🎮 Listening Game</button>
+  </div>
+
+  <div class="cat-grid" id="catGrid"></div>
+  <div id="micWarning">🎤 Microphone practice needs Chrome or Edge — you can still play everything else!</div>
+</div>
+
+<!-- ============ LEARN ============ -->
+<div class="screen" id="learnScreen">
+  <h2 id="learnTitle"></h2>
+  <div class="flashcard" id="flashcard">
+    <div class="emoji" id="cardEmoji"></div>
+    <div class="spanish" id="cardSpanish"></div>
+    <div class="english" id="cardEnglish"></div>
+  </div>
+
+  <div class="btn-row">
+    <div>
+      <button class="round-btn listen" id="listenBtn">🔊</button>
+      <div class="btn-label">Hear it</div>
+    </div>
+    <div>
+      <button class="round-btn mic" id="micBtn">🎤</button>
+      <div class="btn-label">Say it!</div>
+    </div>
+  </div>
+
+  <div id="speakResult"></div>
+
+  <div class="nav-row">
+    <button class="nav-btn" id="prevBtn">⬅️ Back</button>
+    <button class="nav-btn" id="nextBtn">Next ➡️</button>
+  </div>
+</div>
+
+<!-- ============ QUIZ ============ -->
+<div class="screen" id="quizScreen">
+  <h2 id="quizTitle"></h2>
+  <div id="progressBar"><div id="progressFill"></div></div>
+  <div id="quizPrompt">Listen… which one is it?</div>
+  <div>
+    <button class="round-btn listen" id="quizListenBtn">🔊</button>
+    <div class="btn-label">Hear it again</div>
+  </div>
+  <div class="quiz-grid" id="quizGrid"></div>
+</div>
+
+<!-- ============ CELEBRATION ============ -->
+<div class="screen" id="doneScreen">
+  <div style="font-size:5rem">🎉</div>
+  <h1 id="doneTitle">¡Muy bien!</h1>
+  <div id="bigStars"></div>
+  <h2 id="doneMessage"></h2>
+  <div class="nav-row">
+    <button class="nav-btn" id="againBtn">🔁 Play again</button>
+    <button class="nav-btn" id="menuBtn">🏠 Menu</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   WORDS — the basics for a 7-year-old beginner
+   ========================================================= */
+const CATEGORIES = [
+  {
+    id: "greetings", name: "Greetings", icon: "👋",
+    words: [
+      { es: "hola",          en: "hello",        emoji: "👋", alts: ["ola"] },
+      { es: "adiós",         en: "goodbye",      emoji: "🙋", alts: ["adios"] },
+      { es: "gracias",       en: "thank you",    emoji: "🙏" },
+      { es: "por favor",     en: "please",       emoji: "🥺" },
+      { es: "buenos días",   en: "good morning", emoji: "🌞", alts: ["buenos dias"] },
+      { es: "buenas noches", en: "good night",   emoji: "🌙" },
+      { es: "amigo",         en: "friend",       emoji: "🧑‍🤝‍🧑" },
+    ],
+  },
+  {
+    id: "numbers", name: "Numbers", icon: "🔢",
+    words: [
+      { es: "uno",    en: "one",   emoji: "1️⃣", alts: ["1"] },
+      { es: "dos",    en: "two",   emoji: "2️⃣", alts: ["2"] },
+      { es: "tres",   en: "three", emoji: "3️⃣", alts: ["3"] },
+      { es: "cuatro", en: "four",  emoji: "4️⃣", alts: ["4"] },
+      { es: "cinco",  en: "five",  emoji: "5️⃣", alts: ["5"] },
+      { es: "seis",   en: "six",   emoji: "6️⃣", alts: ["6"] },
+      { es: "siete",  en: "seven", emoji: "7️⃣", alts: ["7"] },
+      { es: "ocho",   en: "eight", emoji: "8️⃣", alts: ["8"] },
+      { es: "nueve",  en: "nine",  emoji: "9️⃣", alts: ["9"] },
+      { es: "diez",   en: "ten",   emoji: "🔟", alts: ["10"] },
+    ],
+  },
+  {
+    id: "colors", name: "Colors", icon: "🎨",
+    words: [
+      { es: "rojo",     en: "red",    emoji: "🔴" },
+      { es: "azul",     en: "blue",   emoji: "🔵" },
+      { es: "verde",    en: "green",  emoji: "🟢" },
+      { es: "amarillo", en: "yellow", emoji: "🟡" },
+      { es: "naranja",  en: "orange", emoji: "🟠" },
+      { es: "morado",   en: "purple", emoji: "🟣" },
+      { es: "negro",    en: "black",  emoji: "⚫" },
+      { es: "blanco",   en: "white",  emoji: "⚪" },
+    ],
+  },
+  {
+    id: "animals", name: "Animals", icon: "🐶",
+    words: [
+      { es: "perro",   en: "dog",   emoji: "🐶" },
+      { es: "gato",    en: "cat",   emoji: "🐱" },
+      { es: "pájaro",  en: "bird",  emoji: "🐦", alts: ["pajaro"] },
+      { es: "pez",     en: "fish",  emoji: "🐟" },
+      { es: "caballo", en: "horse", emoji: "🐴" },
+      { es: "vaca",    en: "cow",   emoji: "🐮" },
+      { es: "león",    en: "lion",  emoji: "🦁", alts: ["leon"] },
+      { es: "mono",    en: "monkey",emoji: "🐵" },
+      { es: "rana",    en: "frog",  emoji: "🐸" },
+    ],
+  },
+  {
+    id: "food", name: "Food", icon: "🍎",
+    words: [
+      { es: "manzana", en: "apple",  emoji: "🍎" },
+      { es: "plátano", en: "banana", emoji: "🍌", alts: ["platano"] },
+      { es: "leche",   en: "milk",   emoji: "🥛" },
+      { es: "pan",     en: "bread",  emoji: "🍞" },
+      { es: "queso",   en: "cheese", emoji: "🧀" },
+      { es: "agua",    en: "water",  emoji: "💧" },
+      { es: "huevo",   en: "egg",    emoji: "🥚" },
+      { es: "helado",  en: "ice cream", emoji: "🍦" },
+      { es: "galleta", en: "cookie", emoji: "🍪" },
+    ],
+  },
+];
+
+const PRAISE = ["¡Muy bien!", "¡Excelente!", "¡Fantástico!", "¡Perfecto!", "¡Genial!", "¡Bravo!"];
+
+/* =========================================================
+   STATE
+   ========================================================= */
+let mode = "learn";            // "learn" | "quiz"
+let category = null;
+let cardIndex = 0;
+let quizWords = [];
+let quizIndex = 0;
+let quizStarsThisRound = 0;
+let quizAnswered = false;
+let stars = Number(localStorage.getItem("spanishStars") || 0);
+
+/* =========================================================
+   SPEECH — the game talks (Spanish voice)
+   ========================================================= */
+let spanishVoice = null;
+
+function pickVoice() {
+  const voices = speechSynthesis.getVoices();
+  spanishVoice =
+    voices.find(v => v.lang === "es-ES") ||
+    voices.find(v => v.lang.startsWith("es")) ||
+    null;
+}
+speechSynthesis.onvoiceschanged = pickVoice;
+pickVoice();
+
+function say(text, { rate = 0.8, lang = "es-ES" } = {}) {
+  return new Promise(resolve => {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang;
+    u.rate = rate;
+    u.pitch = 1.1;
+    if (spanishVoice && lang.startsWith("es")) u.voice = spanishVoice;
+    u.onend = resolve;
+    u.onerror = resolve;
+    speechSynthesis.speak(u);
+  });
+}
+
+/* =========================================================
+   MICROPHONE — the game listens
+   ========================================================= */
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SpeechRec) document.getElementById("micWarning").style.display = "block";
+
+function normalize(s) {
+  return s.toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")   // strip accents
+    .replace(/[^a-z0-9ñ\s]/gi, "")
+    .trim();
+}
+
+function matchesWord(transcript, word) {
+  const heard = normalize(transcript);
+  const targets = [word.es, ...(word.alts || [])].map(normalize);
+  return targets.some(t =>
+    heard === t || heard.includes(t) || t.includes(heard) && heard.length >= 3
+  );
+}
+
+function listenForWord(word) {
+  return new Promise(resolve => {
+    const rec = new SpeechRec();
+    rec.lang = "es-ES";
+    rec.interimResults = false;
+    rec.maxAlternatives = 5;
+    let settled = false;
+
+    rec.onresult = e => {
+      settled = true;
+      const alternatives = Array.from(e.results[0]).map(r => r.transcript);
+      resolve({ ok: alternatives.some(t => matchesWord(t, word)), heard: alternatives[0] });
+    };
+    rec.onerror = () => { if (!settled) { settled = true; resolve({ ok: false, heard: null }); } };
+    rec.onend   = () => { if (!settled) { settled = true; resolve({ ok: false, heard: null }); } };
+    rec.start();
+  });
+}
+
+/* =========================================================
+   STARS + CONFETTI
+   ========================================================= */
+function updateStars() {
+  document.getElementById("starCount").textContent = "⭐ " + stars;
+}
+function addStar(n = 1) {
+  stars += n;
+  localStorage.setItem("spanishStars", stars);
+  updateStars();
+}
+
+function confetti(count = 24) {
+  const pieces = ["🎉", "⭐", "🌟", "🎊", "💛", "💚", "💙"];
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement("div");
+    el.className = "confetti";
+    el.textContent = pieces[Math.floor(Math.random() * pieces.length)];
+    el.style.left = Math.random() * 100 + "vw";
+    el.style.animationDuration = 1.5 + Math.random() * 1.5 + "s";
+    el.style.animationDelay = Math.random() * 0.4 + "s";
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+}
+
+/* =========================================================
+   SCREENS
+   ========================================================= */
+function show(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
+/* ---------- Menu ---------- */
+const catGrid = document.getElementById("catGrid");
+CATEGORIES.forEach(cat => {
+  const btn = document.createElement("button");
+  btn.className = "cat-btn";
+  btn.innerHTML = `<span class="big">${cat.icon}</span>${cat.name}`;
+  btn.onclick = () => startCategory(cat);
+  catGrid.appendChild(btn);
+});
+
+document.getElementById("modeLearn").onclick = () => setMode("learn");
+document.getElementById("modeQuiz").onclick  = () => setMode("quiz");
+function setMode(m) {
+  mode = m;
+  document.getElementById("modeLearn").classList.toggle("selected", m === "learn");
+  document.getElementById("modeQuiz").classList.toggle("selected", m === "quiz");
+}
+
+document.getElementById("homeBtn").onclick = () => { speechSynthesis.cancel(); show("menuScreen"); };
+
+function startCategory(cat) {
+  category = cat;
+  if (mode === "learn") startLearn();
+  else startQuiz();
+}
+
+/* =========================================================
+   LEARN MODE — flashcards: hear it, then say it
+   ========================================================= */
+function startLearn() {
+  cardIndex = 0;
+  document.getElementById("learnTitle").textContent = category.icon + " " + category.name;
+  show("learnScreen");
+  renderCard(true);
+}
+
+function renderCard(speak) {
+  const w = category.words[cardIndex];
+  document.getElementById("cardEmoji").textContent = w.emoji;
+  document.getElementById("cardSpanish").textContent = w.es;
+  document.getElementById("cardEnglish").textContent = w.en;
+  setResult("", "");
+  if (speak) say(w.es);
+}
+
+function setResult(text, cls) {
+  const el = document.getElementById("speakResult");
+  el.textContent = text;
+  el.className = cls;
+}
+
+document.getElementById("listenBtn").onclick = () => say(category.words[cardIndex].es);
+
+document.getElementById("prevBtn").onclick = () => {
+  cardIndex = (cardIndex - 1 + category.words.length) % category.words.length;
+  renderCard(true);
+};
+document.getElementById("nextBtn").onclick = () => {
+  if (cardIndex === category.words.length - 1) {
+    finishRound("You practiced every word!");
+    return;
+  }
+  cardIndex++;
+  renderCard(true);
+};
+
+const micBtn = document.getElementById("micBtn");
+let micBusy = false;
+micBtn.onclick = async () => {
+  if (micBusy) return;
+  const w = category.words[cardIndex];
+  if (!SpeechRec) {
+    setResult("Microphone not supported here 😢 — try Chrome!", "tryagain");
+    return;
+  }
+  micBusy = true;
+  speechSynthesis.cancel();
+  micBtn.classList.add("listening");
+  setResult("Listening… say “" + w.es + "”! 🎤", "");
+
+  const result = await listenForWord(w);
+
+  micBtn.classList.remove("listening");
+  micBusy = false;
+
+  if (result.ok) {
+    const praise = PRAISE[Math.floor(Math.random() * PRAISE.length)];
+    setResult(praise + " ⭐", "good");
+    addStar();
+    confetti(14);
+    await say(praise);
+  } else if (result.heard) {
+    setResult("I heard “" + result.heard + "” — try again! 💪", "tryagain");
+    await say(w.es);
+  } else {
+    setResult("I couldn't hear you — try again! 🎤", "tryagain");
+  }
+};
+
+/* =========================================================
+   QUIZ MODE — hear the Spanish word, tap the right picture
+   ========================================================= */
+const QUIZ_LENGTH = 6;
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function startQuiz() {
+  quizWords = shuffle(category.words).slice(0, QUIZ_LENGTH);
+  quizIndex = 0;
+  quizStarsThisRound = 0;
+  document.getElementById("quizTitle").textContent = category.icon + " " + category.name;
+  show("quizScreen");
+  nextQuestion();
+}
+
+function nextQuestion() {
+  if (quizIndex >= quizWords.length) {
+    finishRound(`You earned ${quizStarsThisRound} star${quizStarsThisRound === 1 ? "" : "s"} this round!`);
+    return;
+  }
+  quizAnswered = false;
+  const word = quizWords[quizIndex];
+  document.getElementById("progressFill").style.width =
+    (quizIndex / quizWords.length) * 100 + "%";
+  document.getElementById("quizPrompt").textContent = "Listen… which one is it? 👂";
+
+  const wrong = shuffle(category.words.filter(w => w !== word)).slice(0, 3);
+  const options = shuffle([word, ...wrong]);
+
+  const grid = document.getElementById("quizGrid");
+  grid.innerHTML = "";
+  options.forEach(opt => {
+    const btn = document.createElement("button");
+    btn.className = "quiz-option";
+    btn.textContent = opt.emoji;
+    btn.onclick = () => answerQuiz(btn, opt, word);
+    grid.appendChild(btn);
+  });
+
+  setTimeout(() => say(word.es), 350);
+}
+
+document.getElementById("quizListenBtn").onclick = () => {
+  if (quizWords[quizIndex]) say(quizWords[quizIndex].es);
+};
+
+async function answerQuiz(btn, chosen, word) {
+  if (quizAnswered) return;
+  if (chosen === word) {
+    quizAnswered = true;
+    btn.classList.add("correct");
+    const praise = PRAISE[Math.floor(Math.random() * PRAISE.length)];
+    document.getElementById("quizPrompt").textContent = praise + " " + word.es + " = " + word.en + " ⭐";
+    addStar();
+    quizStarsThisRound++;
+    confetti(10);
+    await say(praise);
+    quizIndex++;
+    setTimeout(nextQuestion, 700);
+  } else {
+    btn.classList.add("wrong");
+    btn.disabled = true;
+    document.getElementById("quizPrompt").textContent = "Almost! Listen again… 👂";
+    say(word.es);
+  }
+}
+
+/* =========================================================
+   CELEBRATION
+   ========================================================= */
+function finishRound(message) {
+  document.getElementById("doneMessage").textContent = message;
+  const starRow = mode === "quiz"
+    ? "⭐".repeat(Math.max(quizStarsThisRound, 1))
+    : "🌟🌟🌟";
+  document.getElementById("bigStars").textContent = starRow;
+  show("doneScreen");
+  confetti(30);
+  say("¡Muy bien, amigo!");
+}
+
+document.getElementById("againBtn").onclick = () => startCategory(category);
+document.getElementById("menuBtn").onclick  = () => show("menuScreen");
+
+updateStars();
+</script>
+</body>
+</html>
