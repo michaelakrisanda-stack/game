@@ -227,7 +227,7 @@
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-  const sun = new THREE.DirectionalLight(0xfff4d6, 0.95);
+  const sun = new THREE.DirectionalLight(0xfff4d6, 1.15);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.left = -70; sun.shadow.camera.right = 70;
@@ -236,8 +236,8 @@
   sun.shadow.bias = -0.0006;
   scene.add(sun);
   scene.add(sun.target);
-  scene.add(new THREE.HemisphereLight(0xcfe5ff, 0x9a8a6a, 0.5));
-  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+  scene.add(new THREE.HemisphereLight(0xcfe5ff, 0x9a8a6a, 0.42));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.16));
 
   // the sun's shadows follow you around the world
   function updateSunShadow() {
@@ -287,6 +287,7 @@
     for (let i = 0; i < 14; i++) {
       const w = 8 + Math.random() * 14, d = 5 + Math.random() * 8;
       const cloud = new THREE.Mesh(new THREE.BoxGeometry(w, 1.2, d), cloudMat);
+      cloud.castShadow = true;                 // cloud shadows drift over the land
       cloud.position.set(Math.random() * (WX + 80) - 40, 54 + Math.random() * 7, Math.random() * WZ);
       scene.add(cloud);
       clouds.push(cloud);
@@ -561,7 +562,7 @@
 
   // blocks use the texture itself as a bump map, so surfaces catch the light
   const lam = (tex, opts) => new THREE.MeshPhongMaterial(Object.assign({
-    map: tex, bumpMap: tex, bumpScale: 0.06, shininess: 4, specular: 0x1c1c1c,
+    map: tex, bumpMap: tex, bumpScale: 0.1, shininess: 4, specular: 0x1c1c1c,
   }, opts));
   // BoxGeometry face order: +x, -x, top, bottom, +z, -z
   const materials = {
@@ -701,6 +702,7 @@
     yaw: 0, pitch: 0,
     onGround: false,
     width: 0.6, height: 1.8, eye: 1.6,
+    kx: 0, kz: 0,                       // knockback push from bonks
   };
 
   function spawnPlayer() {
@@ -770,8 +772,20 @@
     const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
     let speed = inWater ? SPEED * 0.6 : SPEED;
     if (inv.hunger <= 2) speed *= 0.6;        // too hungry to run — eat something!
-    player.vel.x = (mx * cos - mz * sin) * speed;
-    player.vel.z = (mx * sin + mz * cos) * speed;
+    player.vel.x = (mx * cos - mz * sin) * speed + player.kx;
+    player.vel.z = (mx * sin + mz * cos) * speed + player.kz;
+    const kd = Math.max(0, 1 - 6 * dt);       // knockback fades quickly
+    player.kx *= kd; player.kz *= kd;
+
+    // hearts slowly come back when your belly is full
+    if (inv.hearts < 10 && inv.hunger >= 8) {
+      regenClock += dt;
+      if (regenClock > 9) {
+        regenClock = 0;
+        inv.hearts++;
+        updateHearts();
+      }
+    }
 
     // walking makes you hungry over time
     if (len > 0) {
@@ -905,6 +919,51 @@
     return { group: g, legs: arms };
   }
 
+  function buildZombie() {
+    const skin = 0x6fbf5a, shirt = 0x3a7a8c, pants = 0x44447e;
+    const g = new THREE.Group();
+    g.add(box(0.5, 0.55, 0.28, shirt, 0, 0.85, 0));       // shirt
+    g.add(box(0.4, 0.4, 0.4, skin, 0, 1.32, 0));          // head
+    g.add(box(0.08, 0.08, 0.03, 0x1c1c1c, -0.1, 1.38, 0.21)); // derpy eyes
+    g.add(box(0.08, 0.08, 0.03, 0x1c1c1c, 0.1, 1.34, 0.21));
+    g.add(box(0.13, 0.13, 0.5, skin, -0.2, 1.0, 0.3));    // arms straight out
+    g.add(box(0.13, 0.13, 0.5, skin, 0.2, 1.0, 0.3));
+    const legs = [
+      box(0.16, 0.55, 0.16, pants, -0.13, 0.28, 0),
+      box(0.16, 0.55, 0.16, pants, 0.13, 0.28, 0),
+    ];
+    legs.forEach(l => g.add(l));
+    return { group: g, legs };
+  }
+
+  function buildCreeper() {
+    const green = 0x3d8f2c, dark = 0x2c6b1f, mottle = 0x255c19;
+    const g = new THREE.Group();
+    g.add(box(0.5, 0.85, 0.3, green, 0, 0.9, 0));         // body
+    g.add(box(0.14, 0.2, 0.02, mottle, -0.12, 1.0, 0.16)); // mottled patches
+    g.add(box(0.12, 0.16, 0.02, mottle, 0.14, 0.7, 0.16));
+    g.add(box(0.48, 0.48, 0.48, green, 0, 1.58, 0));      // head
+    g.add(box(0.11, 0.13, 0.03, 0x000000, -0.11, 1.66, 0.25)); // angry eyes
+    g.add(box(0.11, 0.13, 0.03, 0x000000, 0.11, 1.66, 0.25));
+    g.add(box(0.08, 0.04, 0.03, 0x000000, -0.14, 1.75, 0.25)); // slanted brows
+    g.add(box(0.08, 0.04, 0.03, 0x000000, 0.14, 1.75, 0.25));
+    g.add(box(0.1, 0.18, 0.03, 0x000000, 0, 1.46, 0.25)); // gaping frown
+    g.add(box(0.2, 0.08, 0.03, 0x000000, 0, 1.52, 0.25));
+    const legs = [
+      box(0.18, 0.5, 0.18, dark, -0.15, 0.25, 0.18),
+      box(0.18, 0.5, 0.18, dark, 0.15, 0.25, 0.18),
+      box(0.18, 0.5, 0.18, dark, -0.15, 0.25, -0.18),
+      box(0.18, 0.5, 0.18, dark, 0.15, 0.25, -0.18),
+    ];
+    legs.forEach(l => g.add(l));
+    return { group: g, legs };
+  }
+
+  const MONSTER_KINDS = [
+    { make: buildZombie,  color: 0x6fbf5a, monster: true, hp: 3, zombie: true },
+    { make: buildCreeper, color: 0x3d8f2c, monster: true, hp: 3, creeper: true },
+  ];
+
   const ANIMAL_KINDS = [
     { make: buildPig,     color: 0xf0a0a8, drops: { meat: 2 },              msg: "+2 🍖 meat!" },
     { make: buildSheep,   color: 0xf5f5f0, drops: { meat: 1 },              msg: "+1 🍖 meat!" },
@@ -935,15 +994,43 @@
     }
   }
 
+  function spawnOneMonster(rand) {
+    for (let tries = 0; tries < 40; tries++) {
+      const x = 4 + Math.floor(rand() * (WX - 8));
+      const z = 4 + Math.floor(rand() * (WZ - 8));
+      // never right where the player starts
+      const dx = x - player.pos.x, dz = z - player.pos.z;
+      if (dx * dx + dz * dz < 30 * 30) continue;
+      const gy = groundHeight(x, z);
+      if (gy <= WATER_LEVEL || !isSolid(x, gy, z)) continue;
+      const kind = MONSTER_KINDS[Math.floor(rand() * MONSTER_KINDS.length)];
+      const built = kind.make();
+      built.group.position.set(x + 0.5, gy + 1, z + 0.5);
+      scene.add(built.group);
+      animals.push({
+        group: built.group, legs: built.legs, kind,
+        hp: kind.hp,
+        yaw: rand() * Math.PI * 2,
+        speed: 0, vy: 0,
+        timer: rand() * 4,
+        walkPhase: rand() * 10,
+        hitCooldown: 0, fuse: -1,
+      });
+      return;
+    }
+  }
+
   function spawnAnimals(count) {
     for (const a of animals) scene.remove(a.group);
     animals.length = 0;
     const rand = makeRandom(Math.floor(Math.random() * 1e9));
     for (let i = 0; i < count; i++) spawnOneAnimal(rand);
+    for (let i = 0; i < 13; i++) spawnOneMonster(rand);
   }
 
   function updateAnimals(dt, time) {
-    for (const a of animals) {
+    for (let ai = animals.length - 1; ai >= 0; ai--) {
+      const a = animals[ai];
       // every few seconds: pick a new plan (wander or rest)
       a.timer -= dt;
       if (a.timer <= 0) {
@@ -957,6 +1044,42 @@
       }
 
       const p = a.group.position;
+
+      // monsters have their own plans...
+      if (a.kind.monster) {
+        a.hitCooldown -= dt;
+        const pdx = player.pos.x - p.x, pdz = player.pos.z - p.z;
+        const dist = Math.hypot(pdx, pdz);
+
+        if (a.kind.creeper && a.fuse >= 0) {
+          // fuse is lit: freeze, flash white, then POOF
+          a.fuse -= dt;
+          a.speed = 0;
+          const flash = Math.sin(a.fuse * 25) > 0;
+          a.group.traverse(o => {
+            if (o.isMesh && o.material.emissive) o.material.emissive.setScalar(flash ? 0.8 : 0);
+          });
+          if (a.fuse <= 0) {
+            explodeCreeper(ai);
+            continue;
+          }
+        } else if (playing && dist < (a.kind.creeper ? 16 : 12)) {
+          // spotted you — here it comes!
+          a.yaw = Math.atan2(pdx, pdz);
+          a.speed = a.kind.zombie ? 1.7 : 1.9;         // creepers sneak up FAST
+          a.timer = 1;
+          if (a.kind.zombie && Math.random() < dt * 0.2)
+            sweep(130, 70, 0.5, 0.03);                 // goofy groan
+          if (a.kind.creeper && dist < 3 && a.fuse < 0) {
+            a.fuse = 1.3;                              // SSSSSSS...
+            sweep(1400, 120, 1.3, 0.09);
+          }
+          if (a.kind.zombie && dist < 1.3 && a.hitCooldown <= 0) {
+            a.hitCooldown = 1.4;                       // bonk!
+            damagePlayer(1, p);
+          }
+        }
+      }
       if (a.speed > 0) {
         const nx = p.x + Math.sin(a.yaw) * a.speed * dt;
         const nz = p.z + Math.cos(a.yaw) * a.speed * dt;
@@ -998,11 +1121,58 @@
 
   // ------- your food pouch -------
   const INV_KEY = "blockworld-inv-v1";
-  const inv = { meat: 0, eggs: 0, feathers: 0, hunger: 10 };
+  const inv = { meat: 0, eggs: 0, feathers: 0, hunger: 10, hearts: 10 };
   try { Object.assign(inv, JSON.parse(localStorage.getItem(INV_KEY) || "{}")); } catch (e) {}
   const invEl = document.getElementById("inv");
   const hungerEl = document.getElementById("hunger");
-  let hungerClock = 0;
+  const heartsEl = document.getElementById("hearts");
+  const hurtEl = document.getElementById("hurt");
+  const toolsEl = document.getElementById("tools");
+  let hungerClock = 0, regenClock = 0;
+
+  function updateHearts() {
+    heartsEl.textContent = "❤️".repeat(inv.hearts) + "🤍".repeat(10 - inv.hearts);
+    try { localStorage.setItem(INV_KEY, JSON.stringify(inv)); } catch (e) {}
+  }
+
+  function damagePlayer(n, fromPos) {
+    inv.hearts = Math.max(0, inv.hearts - n);
+    updateHearts();
+    hurtEl.style.opacity = 0.45;                       // quick red flash
+    setTimeout(() => { hurtEl.style.opacity = 0; }, 350);
+    sweep(220, 90, 0.25, 0.07);
+    if (fromPos) {                                     // get knocked back
+      const dx = player.pos.x - fromPos.x, dz = player.pos.z - fromPos.z;
+      const d = Math.hypot(dx, dz) || 1;
+      player.kx = (dx / d) * 9;
+      player.kz = (dz / d) * 9;
+      player.vel.y = 5;
+    }
+    if (inv.hearts <= 0) {                             // just a little nap
+      toast("Ouch! You took a nap and woke up at home 😴");
+      inv.hearts = 10;
+      updateHearts();
+      spawnPlayer();
+    }
+  }
+
+  // ------- tools: press Q to switch -------
+  const TOOLS = [
+    { name: "Fist",    icon: "👊", dmg: 1 },
+    { name: "Sword",   icon: "🗡️", dmg: 2 },
+    { name: "Pickaxe", icon: "⛏️", dmg: 1 },
+  ];
+  let toolIdx = 0;
+
+  function updateTools() {
+    toolsEl.innerHTML = "";
+    TOOLS.forEach((t, i) => {
+      const s = document.createElement("span");
+      s.className = "toolslot" + (i === toolIdx ? " sel" : "");
+      s.textContent = t.icon;
+      toolsEl.appendChild(s);
+    });
+  }
 
   function updateInv() {
     invEl.textContent = `🍖 ${inv.meat}   🥚 ${inv.eggs}   🪶 ${inv.feathers}`;
@@ -1033,7 +1203,38 @@
     updateHunger();
   }
 
-  // Click animals to hunt them: first hit makes them hop, second gets the goods.
+  // creepers go POOF: a burst of crumbs, a little crater, a big thump
+  function explodeCreeper(index) {
+    const a = animals[index];
+    const p = a.group.position;
+    sweep(120, 28, 0.7, 0.16);                           // THUMP
+    const cx = Math.floor(p.x), cy = Math.floor(p.y), cz = Math.floor(p.z);
+    spawnCrumbs(cx, cy, cz, 0x4fae3d);
+    spawnCrumbs(cx, cy + 1, cz, 0x8a8a8a);
+    spawnCrumbs(cx, cy, cz, 0x6b4726);
+    for (let dx = -3; dx <= 3; dx++)                     // a real crater
+      for (let dy = -3; dy <= 3; dy++)
+        for (let dz = -3; dz <= 3; dz++) {
+          if (dx * dx + dy * dy + dz * dz > 10) continue;
+          const bx = cx + dx, by = cy + dy, bz = cz + dz;
+          if (by < 3) continue;
+          const b = getBlock(bx, by, bz);
+          if (b !== AIR && b !== 9) setBlock(bx, by, bz, AIR);
+        }
+    const seen = new Set();                              // redraw touched chunks
+    for (const [qx, qz] of [[cx - 3, cz - 3], [cx + 3, cz - 3], [cx - 3, cz + 3], [cx + 3, cz + 3]]) {
+      const key = Math.floor(qx / CHUNK) + "," + Math.floor(qz / CHUNK);
+      if (!seen.has(key)) { seen.add(key); rebuildChunk(Math.floor(qx / CHUNK), Math.floor(qz / CHUNK)); }
+    }
+    saveSoon();
+    const pd = Math.hypot(player.pos.x - p.x, player.pos.z - p.z);
+    if (pd < 5) damagePlayer(3, p);                      // big bonk if you're close
+    scene.remove(a.group);
+    animals.splice(index, 1);
+    setTimeout(() => spawnOneMonster(makeRandom(Math.floor(Math.random() * 1e9))), 25000);
+  }
+
+  // Click to swing your tool: hunt animals, fight monsters.
   // Villagers are people — they just say hello.
   const animalRay = new THREE.Raycaster();
   function pokeAnimal() {
@@ -1052,25 +1253,40 @@
         return true;
       }
 
-      a.hp--;
-      if (a.hp > 0) {                                    // ouch — it runs!
+      if (TOOLS[toolIdx].name === "Sword") sweep(950, 350, 0.09, 0.04); // swish!
+      a.hp -= TOOLS[toolIdx].dmg;
+
+      if (a.hp > 0) {                                    // ouch!
         a.group.position.y += 0.02;
         a.vy = 5;
-        a.yaw = player.yaw;                              // flee away from you
-        a.speed = 2.5;
-        a.timer = 2;
+        if (a.kind.monster) {                            // monsters get knocked back
+          const dx = a.group.position.x - player.pos.x;
+          const dz = a.group.position.z - player.pos.z;
+          a.yaw = Math.atan2(dx, dz);
+          a.speed = 3;
+          a.timer = 0.5;
+        } else {                                         // animals run away
+          a.yaw = player.yaw;
+          a.speed = 2.5;
+          a.timer = 2;
+        }
         blip(300, 0.1);
-      } else {                                           // got it!
+      } else {                                           // defeated!
         const p = a.group.position;
         spawnCrumbs(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z), a.kind.color);
         scene.remove(a.group);
         animals.splice(i, 1);
-        for (const k in a.kind.drops) inv[k] += a.kind.drops[k];
-        updateInv();
-        toast(a.kind.msg);
-        blip(180, 0.15);
-        // a new friend wanders in from somewhere a little later
-        setTimeout(() => spawnOneAnimal(makeRandom(Math.floor(Math.random() * 1e9))), 20000);
+        if (a.kind.monster) {
+          toast(a.kind.zombie ? "Got the zombie! 💥" : "Got the creeper before it popped! 💥");
+          blip(500, 0.12);
+          setTimeout(() => spawnOneMonster(makeRandom(Math.floor(Math.random() * 1e9))), 25000);
+        } else {
+          for (const k in a.kind.drops) inv[k] += a.kind.drops[k];
+          updateInv();
+          toast(a.kind.msg);
+          blip(180, 0.15);
+          setTimeout(() => spawnOneAnimal(makeRandom(Math.floor(Math.random() * 1e9))), 20000);
+        }
       }
       return true;
     }
@@ -1256,6 +1472,24 @@
     } catch (e) { /* sound is optional */ }
   }
 
+  // a sliding whoosh/growl: frequency glides from f1 to f2
+  function sweep(f1, f2, duration, volume) {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      const t = audioCtx.currentTime;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(f1, t);
+      o.frequency.exponentialRampToValueAtTime(Math.max(25, f2), t + duration);
+      g.gain.setValueAtTime(volume, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + duration);
+      o.connect(g).connect(audioCtx.destination);
+      o.start();
+      o.stop(t + duration);
+    } catch (e) { /* sound is optional */ }
+  }
+
   // ---------------------------------------------------------------- hotbar UI
   let selected = 0;
   const hotbarEl = document.getElementById("hotbar");
@@ -1310,6 +1544,8 @@
     hotbarEl.style.display = on ? "flex" : "none";
     invEl.style.display = on ? "block" : "none";
     hungerEl.style.display = on ? "block" : "none";
+    heartsEl.style.display = on ? "block" : "none";
+    toolsEl.style.display = on ? "flex" : "none";
     if (!on) for (const k in keys) keys[k] = false;
   }
 
@@ -1385,6 +1621,12 @@
     keys[e.code] = true;
     if (e.code === "Space") e.preventDefault();
     if (e.code === "KeyE") eat();
+    if (e.code === "KeyQ") {                             // switch tools
+      toolIdx = (toolIdx + 1) % TOOLS.length;
+      updateTools();
+      toast(TOOLS[toolIdx].icon + " " + TOOLS[toolIdx].name + " ready!");
+      sweep(700, 350, 0.08, 0.03);
+    }
     if (e.code.startsWith("Digit")) {
       const n = parseInt(e.code.slice(5), 10);
       if (n >= 1 && n <= HOTBAR.length) selectSlot(n - 1);
@@ -1399,17 +1641,31 @@
 
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
+  // hard blocks need 3 punches — or just 1 hit with the pickaxe
+  const HARD_BLOCKS = { 3: true, 5: true, 7: true, 8: true, 10: true };
+  let digTarget = null; // { x, y, z, left }
+
   function breakOrPlace(button) {
-    if (button === 0 && pokeAnimal()) return;           // pet before you dig!
+    if (button === 0 && pokeAnimal()) return;           // swing at creatures first
     const hit = raycastBlock(6);
     if (!hit) return;
 
-    if (button === 0) {                                 // break
+    if (button === 0) {                                 // dig
       const broken = getBlock(hit.x, hit.y, hit.z);
+      const needed = HARD_BLOCKS[broken] && TOOLS[toolIdx].name !== "Pickaxe" ? 3 : 1;
+      if (!digTarget || digTarget.x !== hit.x || digTarget.y !== hit.y || digTarget.z !== hit.z)
+        digTarget = { x: hit.x, y: hit.y, z: hit.z, left: needed };
+
+      digTarget.left--;
+      spawnCrumbs(hit.x, hit.y, hit.z, BLOCKS[broken] ? BLOCKS[broken].color : 0x888888);
+      if (digTarget.left > 0) {                         // crack... keep hitting!
+        blip(220 + digTarget.left * 60, 0.08);
+        return;
+      }
+      digTarget = null;
       setBlock(hit.x, hit.y, hit.z, AIR);
       rebuildAt(hit.x, hit.z);
       saveSoon();
-      spawnCrumbs(hit.x, hit.y, hit.z, BLOCKS[broken] ? BLOCKS[broken].color : 0x888888);
       blip(160, 0.12);
     } else if (button === 2) {                          // place
       const px = hit.x + hit.face[0];
@@ -1491,5 +1747,7 @@
   buildHotbar();
   updateInv();
   updateHunger();
+  updateHearts();
+  updateTools();
   requestAnimationFrame(frame);
 })();

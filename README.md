@@ -26,6 +26,7 @@ That's it. No installing, no internet needed after you download it.
 | **Click an animal** | Hunt it for meat, eggs & feathers 🍖 |
 | **Click a villager** | They just say hi — villagers are friends 👋 |
 | **E** | Eat meat or eggs when you're hungry 🍗 |
+| **Q** | Switch tools: fist 👊 / sword 🗡️ / pickaxe ⛏️ |
 | **ESC** | Pause and see the menu |
 
 ## 🌍 Fun things to know
@@ -37,6 +38,12 @@ That's it. No installing, no internet needed after you download it.
   around, **birds** circling in the sky, and birdsong now and then.
 - **You get hungry** as you explore — the drumstick bar 🍗 shows how hungry.
   Press **E** to eat meat or eggs. Too hungry and you'll walk slowly!
+- **Monsters!** Goofy zombies shamble after you and bonk you (-1 ❤️), and
+  scary creepers sneak up silently, hiss, flash, and BLOW A CRATER (-3 ❤️
+  if you're close!). Fight back with the sword — press **Q** to grab it.
+- **Hearts** ❤️ show your health. They come back when your belly is full.
+  If you run out you just take a nap and wake up back home — that's all.
+- **Pickaxe** breaks stone and brick in one hit; fists need three.
 - Walking feels real: your view gently bobs and you hear soft footsteps.
 - **Hunt animals** to collect 🍖 meat, 🥚 eggs, and 🪶 feathers — your food
   pouch in the corner keeps count. New animals wander in over time.
