@@ -5,8 +5,9 @@
   "use strict";
 
   // ---------------------------------------------------------------- world size
-  const WX = 128, WY = 40, WZ = 128;   // world dimensions in blocks
+  const WX = 256, WY = 64, WZ = 256;   // world dimensions in blocks
   const WATER_LEVEL = 12;
+  const SNOW_LINE = 42;                // mountain tops above this get snow
 
   // ---------------------------------------------------------------- block types
   const AIR = 0;
@@ -21,8 +22,11 @@
     8: { name: "Brick",  color: 0xc4574d, solid: true },
     9: { name: "Water",  color: 0x3f76e4, solid: false, water: true },
     10: { name: "Craft Table", color: 0xa97d4b, solid: true, craftTable: true },
+    11: { name: "Snow", color: 0xf4f8fb, solid: true },
+    12: { name: "Flower", color: 0xe74c3c, solid: false, flower: true },
+    13: { name: "Flower", color: 0xf1c40f, solid: false, flower: true },
   };
-  const HOTBAR = [1, 2, 3, 4, 5, 6, 7, 8, 10]; // placeable blocks on keys 1-9
+  const HOTBAR = [1, 2, 3, 4, 5, 6, 7, 8, 10, 11]; // keys 1-9, then 0 for snow
 
   const world = new Uint8Array(WX * WY * WZ);
   const idx = (x, y, z) => (y * WZ + z) * WX + x;
@@ -68,23 +72,63 @@
     const noiseSmall = makeNoise(seed + 999);
     const rand = makeRandom(seed + 12345);
 
+    const noiseMtn = makeNoise(seed + 5555);
+
     for (let x = 0; x < WX; x++) {
       for (let z = 0; z < WZ; z++) {
         const n = noiseBig(x / 22, z / 22) * 0.75 + noiseSmall(x / 7, z / 7) * 0.25;
-        const height = Math.floor(8 + n * 14); // ground height 8..22
+        let height = Math.floor(8 + n * 14); // rolling hills 8..22
+
+        // mountains rise where the mountain noise is strong
+        const m = Math.max(0, noiseMtn(x / 34, z / 34) - 0.52) / 0.48;
+        height += Math.floor(Math.pow(m, 1.6) * 36);
+        height = Math.min(height, WY - 6);
+
+        const rocky = height > 30;
         for (let y = 0; y <= height; y++) {
           let t;
-          if (y === height) t = height <= WATER_LEVEL + 1 ? 4 : 1; // sand near water, else grass
-          else if (y >= height - 3) t = 2;                          // dirt
-          else t = 3;                                               // stone
+          if (y === height) {
+            if (height <= WATER_LEVEL + 1) t = 4;        // sandy shores
+            else if (height >= SNOW_LINE) t = 11;        // snowy peaks
+            else if (rocky) t = 3;                       // rocky slopes
+            else t = 1;                                  // grass
+          }
+          else if (!rocky && y >= height - 3) t = 2;     // dirt under grass
+          else t = 3;                                    // stone
           setBlock(x, y, z, t);
         }
         for (let y = height + 1; y <= WATER_LEVEL; y++) setBlock(x, y, z, 9); // water fills valleys
       }
     }
 
+    // caves: wiggly tunnels carved through the underground
+    for (let i = 0; i < 60; i++) {
+      let cx = rand() * WX, cy = 6 + rand() * 18, cz = rand() * WZ;
+      let ang = rand() * Math.PI * 2;
+      let pitch = (rand() - 0.5) * 0.5;
+      const len = 40 + rand() * 60;
+      for (let s = 0; s < len; s++) {
+        const r = 1.6 + rand() * 1.2;
+        const ri = Math.ceil(r);
+        for (let dx = -ri; dx <= ri; dx++)
+          for (let dy = -ri; dy <= ri; dy++)
+            for (let dz = -ri; dz <= ri; dz++) {
+              if (dx * dx + dy * dy + dz * dz > r * r) continue;
+              const bx = Math.floor(cx + dx), by = Math.floor(cy + dy), bz = Math.floor(cz + dz);
+              if (by < 2) continue;                      // keep a solid floor
+              const b = getBlock(bx, by, bz);
+              if (b !== AIR && b !== 9) setBlock(bx, by, bz, AIR);
+            }
+        ang += (rand() - 0.5) * 0.6;
+        pitch = Math.max(-0.6, Math.min(0.6, pitch + (rand() - 0.5) * 0.3));
+        cx += Math.cos(ang) * 1.5;
+        cz += Math.sin(ang) * 1.5;
+        cy = Math.max(4, Math.min(26, cy + Math.sin(pitch)));
+      }
+    }
+
     // trees
-    for (let i = 0; i < 110; i++) {
+    for (let i = 0; i < 420; i++) {
       const x = 3 + Math.floor(rand() * (WX - 6));
       const z = 3 + Math.floor(rand() * (WZ - 6));
       let top = -1;
@@ -107,6 +151,14 @@
         }
       }
     }
+
+    // flowers sprinkled across the meadows
+    for (let i = 0; i < 900; i++) {
+      const x = Math.floor(rand() * WX), z = Math.floor(rand() * WZ);
+      const gy = groundHeight(x, z);
+      if (getBlock(x, gy, z) === 1 && getBlock(x, gy + 1, z) === AIR)
+        setBlock(x, gy + 1, z, rand() < 0.5 ? 12 : 13);
+    }
   }
 
   function groundHeight(x, z) {
@@ -115,14 +167,22 @@
   }
 
   // ---------------------------------------------------------------- save / load
-  const SAVE_KEY = "blockworld-save-v2"; // v2: world grew to 128x128
+  // Saves use run-length encoding (count,value pairs) — the huge world is
+  // mostly long runs of the same block, so this squeezes it down massively.
+  const SAVE_KEY = "blockworld-save-v4"; // v4: 256x256 world, RLE compressed
 
   function saveWorld() {
     try {
-      let bin = "";
-      for (let i = 0; i < world.length; i += 8192)
-        bin += String.fromCharCode.apply(null, world.subarray(i, i + 8192));
-      localStorage.setItem(SAVE_KEY, btoa(bin));
+      const parts = [];
+      let i = 0;
+      while (i < world.length) {
+        const v = world[i];
+        let run = 1;
+        while (i + run < world.length && world[i + run] === v && run < 40000) run++;
+        parts.push(String.fromCharCode(run, v + 32));
+        i += run;
+      }
+      localStorage.setItem(SAVE_KEY, parts.join(""));
     } catch (e) { /* storage may be unavailable on file:// in some browsers */ }
   }
 
@@ -130,10 +190,14 @@
     try {
       const data = localStorage.getItem(SAVE_KEY);
       if (!data) return false;
-      const bin = atob(data);
-      if (bin.length !== world.length) return false;
-      for (let i = 0; i < bin.length; i++) world[i] = bin.charCodeAt(i);
-      return true;
+      let i = 0, pos = 0;
+      while (i + 1 < data.length && pos < world.length) {
+        const run = data.charCodeAt(i), v = data.charCodeAt(i + 1) - 32;
+        world.fill(v, pos, Math.min(pos + run, world.length));
+        pos += run;
+        i += 2;
+      }
+      return pos === world.length;
     } catch (e) { return false; }
   }
 
@@ -150,14 +214,39 @@
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87ceeb);
-  scene.fog = new THREE.Fog(0x87ceeb, 50, 140);
+  scene.fog = new THREE.Fog(0x87ceeb, 60, 200);
 
-  const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 300);
+  const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 420);
 
-  const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+  const sun = new THREE.DirectionalLight(0xfff4d6, 0.95);
   sun.position.set(0.6, 1, 0.4);
   scene.add(sun);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  scene.add(new THREE.HemisphereLight(0xcfe5ff, 0x9a8a6a, 0.5));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+
+  // a friendly sun you can see in the sky
+  const sunBall = new THREE.Mesh(
+    new THREE.CircleGeometry(7, 24),
+    new THREE.MeshBasicMaterial({ color: 0xfff1a8, fog: false })
+  );
+  sunBall.position.set(WX / 2 + 90, 80, WZ / 2 + 60);
+  sunBall.lookAt(WX / 2, 15, WZ / 2);
+  scene.add(sunBall);
+
+  // fluffy clouds drifting across the sky
+  const clouds = [];
+  {
+    const cloudMat = new THREE.MeshLambertMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.85,
+    });
+    for (let i = 0; i < 14; i++) {
+      const w = 8 + Math.random() * 14, d = 5 + Math.random() * 8;
+      const cloud = new THREE.Mesh(new THREE.BoxGeometry(w, 1.2, d), cloudMat);
+      cloud.position.set(Math.random() * (WX + 80) - 40, 54 + Math.random() * 7, Math.random() * WZ);
+      scene.add(cloud);
+      clouds.push(cloud);
+    }
+  }
 
   function resize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -171,84 +260,202 @@
   // One InstancedMesh per block type, holding every block that touches air.
   const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
 
-  // pixel-art texture for the crafting table: planks, a 2x2 grid top, tool marks
-  function makeCraftTableTexture() {
+  // ---- pixel-art textures, painted on 16x16 canvases -------------------
+  function makeTexture(paint) {
     const c = document.createElement("canvas");
     c.width = c.height = 16;
-    const ctx = c.getContext("2d");
-    ctx.fillStyle = "#a97d4b";                   // planks
-    ctx.fillRect(0, 0, 16, 16);
-    ctx.fillStyle = "#8a6238";                   // plank seams
-    for (let y = 3; y < 16; y += 4) ctx.fillRect(0, y, 16, 1);
-    ctx.fillStyle = "#5d3f1f";                   // dark border
-    ctx.fillRect(0, 0, 16, 2); ctx.fillRect(0, 14, 16, 2);
-    ctx.fillRect(0, 0, 2, 16); ctx.fillRect(14, 0, 2, 16);
-    ctx.fillStyle = "#5d3f1f";                   // 2x2 crafting grid
-    ctx.fillRect(4, 4, 8, 1); ctx.fillRect(4, 11, 8, 1);
-    ctx.fillRect(4, 4, 1, 8); ctx.fillRect(11, 4, 1, 8);
-    ctx.fillRect(7, 4, 1, 8); ctx.fillRect(4, 7, 8, 1);
-    ctx.fillStyle = "#c0392b";                   // little tool marks
-    ctx.fillRect(5, 5, 2, 2);
-    ctx.fillStyle = "#95a5a6";
-    ctx.fillRect(9, 8, 2, 2);
+    paint(c.getContext("2d"));
     const tex = new THREE.CanvasTexture(c);
     tex.magFilter = THREE.NearestFilter;
     tex.minFilter = THREE.NearestFilter;
     return tex;
   }
 
-  const materials = {};
-  for (const t in BLOCKS) {
-    const b = BLOCKS[t];
-    if (b.water)
-      materials[t] = new THREE.MeshLambertMaterial({ color: b.color, transparent: true, opacity: 0.65 });
-    else if (b.craftTable)
-      materials[t] = new THREE.MeshLambertMaterial({ map: makeCraftTableTexture() });
-    else
-      materials[t] = new THREE.MeshLambertMaterial({ color: b.color });
-  }
-  let typeMeshes = {};
-
-  function isExposed(x, y, z) {
-    return !isSolidOrWater(x + 1, y, z) || !isSolidOrWater(x - 1, y, z) ||
-           !isSolidOrWater(x, y + 1, z) || !isSolidOrWater(x, y - 1, z) ||
-           !isSolidOrWater(x, y, z + 1) || !isSolidOrWater(x, y, z - 1);
-  }
-  function isSolidOrWater(x, y, z) {
-    if (!inWorld(x, y, z)) return false;
-    return world[idx(x, y, z)] !== AIR;
-  }
-
-  function rebuildWorldMesh() {
-    for (const t in typeMeshes) {
-      scene.remove(typeMeshes[t]);
-      typeMeshes[t].dispose();
+  // fill with a base color, then sprinkle darker/lighter pixels for grain
+  function speckle(ctx, base, dark, light, amount) {
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, 16, 16);
+    for (let i = 0; i < amount; i++) {
+      ctx.fillStyle = Math.random() < 0.5 ? dark : light;
+      ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
     }
-    typeMeshes = {};
+  }
+
+  const texs = {
+    grassTop: makeTexture(ctx => speckle(ctx, "#5dbb46", "#4c9e39", "#71d158", 70)),
+    grassSide: makeTexture(ctx => {
+      speckle(ctx, "#9b6a3d", "#855931", "#ad7a49", 55);
+      ctx.fillStyle = "#5dbb46";                  // grass hanging over the top edge
+      for (let x = 0; x < 16; x++) ctx.fillRect(x, 0, 1, 2 + Math.floor(Math.random() * 3));
+    }),
+    dirt: makeTexture(ctx => speckle(ctx, "#9b6a3d", "#855931", "#ad7a49", 70)),
+    stone: makeTexture(ctx => {
+      speckle(ctx, "#8f8f8f", "#7a7a7a", "#a1a1a1", 60);
+      ctx.fillStyle = "#6e6e6e";                  // little cracks
+      for (let i = 0; i < 4; i++) {
+        const x = Math.floor(Math.random() * 12), y = Math.floor(Math.random() * 14);
+        ctx.fillRect(x, y, 3, 1); ctx.fillRect(x + 2, y + 1, 2, 1);
+      }
+    }),
+    sand: makeTexture(ctx => speckle(ctx, "#f2e2a0", "#e0cd85", "#faedb8", 80)),
+    woodSide: makeTexture(ctx => {
+      speckle(ctx, "#7a5230", "#684526", "#8a5f39", 30);
+      ctx.fillStyle = "#5e3d20";                  // bark stripes
+      for (const x of [1, 4, 7, 10, 13]) ctx.fillRect(x, 0, 1, 16);
+    }),
+    woodTop: makeTexture(ctx => {
+      speckle(ctx, "#a9743f", "#93622f", "#b8834d", 20);
+      ctx.strokeStyle = "#7a5230";                // growth rings
+      for (const r of [2, 5, 8]) ctx.strokeRect(8 - r / 2, 8 - r / 2, r, r);
+    }),
+    leaves: makeTexture(ctx => {
+      speckle(ctx, "#2e9e3e", "#227a2f", "#3cb84e", 90);
+      ctx.fillStyle = "#1b5e24";                  // deep shadow holes
+      for (let i = 0; i < 10; i++)
+        ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+    }),
+    planks: makeTexture(ctx => {
+      speckle(ctx, "#c9a05a", "#b58c48", "#d6af6b", 30);
+      ctx.fillStyle = "#9a7434";                  // board seams
+      for (const y of [3, 7, 11, 15]) ctx.fillRect(0, y, 16, 1);
+      ctx.fillRect(4, 0, 1, 4); ctx.fillRect(11, 4, 1, 4); ctx.fillRect(6, 8, 1, 4);
+    }),
+    brick: makeTexture(ctx => {
+      ctx.fillStyle = "#b8452f"; ctx.fillRect(0, 0, 16, 16);
+      ctx.fillStyle = "#cfc0b4";                  // mortar
+      for (const y of [0, 4, 8, 12]) ctx.fillRect(0, y, 16, 1);
+      for (let row = 0; row < 4; row++) {
+        const off = row % 2 ? 4 : 0;
+        for (let x = off; x < 16; x += 8) ctx.fillRect(x, row * 4, 1, 4);
+      }
+      ctx.fillStyle = "#a03a26";                  // brick shading
+      for (let i = 0; i < 20; i++)
+        ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+    }),
+    water: makeTexture(ctx => {
+      speckle(ctx, "#3f76e4", "#3567cc", "#5b8ef0", 50);
+      ctx.fillStyle = "#7fabff";                  // sparkles
+      for (let i = 0; i < 6; i++)
+        ctx.fillRect(Math.floor(Math.random() * 14), Math.floor(Math.random() * 16), 2, 1);
+    }),
+    craftTop: makeTexture(ctx => {
+      speckle(ctx, "#a97d4b", "#93683a", "#b98d5b", 25);
+      ctx.fillStyle = "#5d3f1f";                  // 2x2 crafting grid
+      ctx.fillRect(3, 3, 10, 1); ctx.fillRect(3, 12, 10, 1);
+      ctx.fillRect(3, 3, 1, 10); ctx.fillRect(12, 3, 1, 10);
+      ctx.fillRect(7, 3, 2, 10); ctx.fillRect(3, 7, 10, 2);
+    }),
+    snow: makeTexture(ctx => speckle(ctx, "#f4f8fb", "#dde8f0", "#ffffff", 40)),
+    flowerRed: makeTexture(ctx => {
+      ctx.fillStyle = "#3e8e2f"; ctx.fillRect(7, 8, 2, 8);    // stem
+      ctx.fillStyle = "#e74c3c"; ctx.fillRect(4, 2, 8, 7);    // petals
+      ctx.fillStyle = "#ffd54f"; ctx.fillRect(7, 4, 2, 2);    // center
+    }),
+    flowerYellow: makeTexture(ctx => {
+      ctx.fillStyle = "#3e8e2f"; ctx.fillRect(7, 8, 2, 8);
+      ctx.fillStyle = "#f1c40f"; ctx.fillRect(4, 2, 8, 7);
+      ctx.fillStyle = "#e67e22"; ctx.fillRect(7, 4, 2, 2);
+    }),
+    craftSide: makeTexture(ctx => {
+      speckle(ctx, "#a97d4b", "#8a6238", "#b98d5b", 25);
+      ctx.fillStyle = "#5d3f1f";
+      ctx.fillRect(0, 0, 16, 1); ctx.fillRect(0, 14, 16, 2);
+      ctx.fillStyle = "#c0392b";                  // saw
+      ctx.fillRect(3, 4, 4, 3);
+      ctx.fillStyle = "#95a5a6";                  // hammer
+      ctx.fillRect(9, 5, 4, 2); ctx.fillRect(10, 7, 2, 5);
+    }),
+  };
+  // water shimmers by slowly sliding its texture
+  texs.water.wrapS = texs.water.wrapT = THREE.RepeatWrapping;
+
+  const lam = (tex, opts) => new THREE.MeshLambertMaterial(Object.assign({ map: tex }, opts));
+  // BoxGeometry face order: +x, -x, top, bottom, +z, -z
+  const materials = {
+    1: [lam(texs.grassSide), lam(texs.grassSide), lam(texs.grassTop),
+        lam(texs.dirt), lam(texs.grassSide), lam(texs.grassSide)],
+    2: lam(texs.dirt),
+    3: lam(texs.stone),
+    4: lam(texs.sand),
+    5: [lam(texs.woodSide), lam(texs.woodSide), lam(texs.woodTop),
+        lam(texs.woodTop), lam(texs.woodSide), lam(texs.woodSide)],
+    6: lam(texs.leaves),
+    7: lam(texs.planks),
+    8: lam(texs.brick),
+    9: lam(texs.water, { transparent: true, opacity: 0.7 }),
+    10: [lam(texs.craftSide), lam(texs.craftSide), lam(texs.craftTop),
+         lam(texs.planks), lam(texs.craftSide), lam(texs.craftSide)],
+    11: lam(texs.snow),
+    12: lam(texs.flowerRed, { transparent: true, alphaTest: 0.4 }),
+    13: lam(texs.flowerYellow, { transparent: true, alphaTest: 0.4 }),
+  };
+
+  // flowers are drawn as slim little boxes, not full cubes
+  const flowerGeo = new THREE.BoxGeometry(0.3, 0.8, 0.3);
+  flowerGeo.translate(0, -0.1, 0);
+  function isExposed(x, y, z) {
+    return !covers(x + 1, y, z) || !covers(x - 1, y, z) ||
+           !covers(x, y + 1, z) || !covers(x, y - 1, z) ||
+           !covers(x, y, z + 1) || !covers(x, y, z - 1);
+  }
+  // does this cell hide the face of the block next to it?
+  function covers(x, y, z) {
+    if (!inWorld(x, y, z)) return false;
+    const b = world[idx(x, y, z)];
+    return b !== AIR && !BLOCKS[b].flower;
+  }
+
+  // The world is drawn in 32x32 chunks so edits only redraw one small piece.
+  const CHUNK = 32;
+  const chunkMeshes = new Map(); // "cx,cz" -> [InstancedMesh, ...]
+
+  function rebuildChunk(cx, cz) {
+    const key = cx + "," + cz;
+    const old = chunkMeshes.get(key);
+    if (old) for (const m of old) { scene.remove(m); m.dispose(); }
 
     const positions = {};
-    for (let y = 0; y < WY; y++) {
-      for (let z = 0; z < WZ; z++) {
-        for (let x = 0; x < WX; x++) {
+    const x0 = cx * CHUNK, z0 = cz * CHUNK;
+    for (let y = 0; y < WY; y++)
+      for (let z = z0; z < z0 + CHUNK; z++)
+        for (let x = x0; x < x0 + CHUNK; x++) {
           const t = world[idx(x, y, z)];
           if (t === AIR || !isExposed(x, y, z)) continue;
           (positions[t] || (positions[t] = [])).push(x, y, z);
         }
-      }
-    }
 
     const m4 = new THREE.Matrix4();
+    const meshes = [];
     for (const t in positions) {
       const pts = positions[t];
-      const mesh = new THREE.InstancedMesh(cubeGeo, materials[t], pts.length / 3);
+      const geo = BLOCKS[t].flower ? flowerGeo : cubeGeo;
+      const mesh = new THREE.InstancedMesh(geo, materials[t], pts.length / 3);
       for (let i = 0; i < pts.length; i += 3) {
         m4.makeTranslation(pts[i] + 0.5, pts[i + 1] + 0.5, pts[i + 2] + 0.5);
         mesh.setMatrixAt(i / 3, m4);
       }
       mesh.instanceMatrix.needsUpdate = true;
       scene.add(mesh);
-      typeMeshes[t] = mesh;
+      meshes.push(mesh);
     }
+    chunkMeshes.set(key, meshes);
+  }
+
+  function rebuildWorldMesh() {
+    for (let cx = 0; cx < WX / CHUNK; cx++)
+      for (let cz = 0; cz < WZ / CHUNK; cz++)
+        rebuildChunk(cx, cz);
+  }
+
+  // redraw the chunk containing (x,z), plus neighbors when on a border
+  function rebuildAt(x, z) {
+    const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK);
+    const maxC = WX / CHUNK - 1, maxZ = WZ / CHUNK - 1;
+    rebuildChunk(cx, cz);
+    if (x % CHUNK === 0 && cx > 0) rebuildChunk(cx - 1, cz);
+    if (x % CHUNK === CHUNK - 1 && cx < maxC) rebuildChunk(cx + 1, cz);
+    if (z % CHUNK === 0 && cz > 0) rebuildChunk(cx, cz - 1);
+    if (z % CHUNK === CHUNK - 1 && cz < maxZ) rebuildChunk(cx, cz + 1);
   }
 
   // highlight box around the block you are looking at
@@ -269,7 +476,22 @@
   };
 
   function spawnPlayer() {
-    const x = WX / 2, z = WZ / 2;
+    // start at the middle, but walk outward until we find dry grassy land
+    let x = WX / 2, z = WZ / 2;
+    outer:
+    for (let r = 0; r < 50; r += 2) {
+      for (let dx = -r; dx <= r; dx += 2) {
+        for (let dz = -r; dz <= r; dz += 2) {
+          const tx = WX / 2 + dx, tz = WZ / 2 + dz;
+          if (!inWorld(tx, 0, tz)) continue;
+          const gy = groundHeight(tx, tz);
+          if (gy > WATER_LEVEL && getBlock(tx, gy, tz) === 1) {
+            x = tx; z = tz;
+            break outer;
+          }
+        }
+      }
+    }
     player.pos.set(x + 0.5, groundHeight(x, z) + 2, z + 0.5);
     player.vel.set(0, 0, 0);
     player.yaw = Math.PI * 0.25;
@@ -430,29 +652,41 @@
     return { group: g, legs: arms };
   }
 
-  const ANIMAL_KINDS = [buildPig, buildSheep, buildChicken, buildChicken, buildVillager];
+  const ANIMAL_KINDS = [
+    { make: buildPig,     color: 0xf0a0a8, drops: { meat: 2 },              msg: "+2 🍖 meat!" },
+    { make: buildSheep,   color: 0xf5f5f0, drops: { meat: 1 },              msg: "+1 🍖 meat!" },
+    { make: buildChicken, color: 0xfafafa, drops: { eggs: 1, feathers: 2 }, msg: "+1 🥚 and +2 🪶!" },
+    { make: buildChicken, color: 0xfafafa, drops: { eggs: 1, feathers: 2 }, msg: "+1 🥚 and +2 🪶!" },
+    { make: buildVillager, villager: true },
+  ];
 
-  function spawnAnimals(count) {
-    for (const a of animals) scene.remove(a.group);
-    animals.length = 0;
-    const rand = makeRandom(Math.floor(Math.random() * 1e9));
-    let tries = 0;
-    while (animals.length < count && tries++ < count * 30) {
+  function spawnOneAnimal(rand) {
+    for (let tries = 0; tries < 40; tries++) {
       const x = 4 + Math.floor(rand() * (WX - 8));
       const z = 4 + Math.floor(rand() * (WZ - 8));
       const gy = groundHeight(x, z);
       if (getBlock(x, gy, z) !== 1) continue;            // only on grass
-      const kind = ANIMAL_KINDS[Math.floor(rand() * ANIMAL_KINDS.length)]();
-      kind.group.position.set(x + 0.5, gy + 1, z + 0.5);
-      scene.add(kind.group);
+      const kind = ANIMAL_KINDS[Math.floor(rand() * ANIMAL_KINDS.length)];
+      const built = kind.make();
+      built.group.position.set(x + 0.5, gy + 1, z + 0.5);
+      scene.add(built.group);
       animals.push({
-        group: kind.group, legs: kind.legs,
+        group: built.group, legs: built.legs, kind,
+        hp: 2,
         yaw: rand() * Math.PI * 2,
         speed: 0, vy: 0,
         timer: rand() * 4,
         walkPhase: rand() * 10,
       });
+      return;
     }
+  }
+
+  function spawnAnimals(count) {
+    for (const a of animals) scene.remove(a.group);
+    animals.length = 0;
+    const rand = makeRandom(Math.floor(Math.random() * 1e9));
+    for (let i = 0; i < count; i++) spawnOneAnimal(rand);
   }
 
   function updateAnimals(dt, time) {
@@ -509,22 +743,95 @@
     }
   }
 
-  // click an animal to make it hop!
+  // ------- your food pouch -------
+  const INV_KEY = "blockworld-inv-v1";
+  const inv = { meat: 0, eggs: 0, feathers: 0 };
+  try { Object.assign(inv, JSON.parse(localStorage.getItem(INV_KEY) || "{}")); } catch (e) {}
+  const invEl = document.getElementById("inv");
+
+  function updateInv() {
+    invEl.textContent = `🍖 ${inv.meat}   🥚 ${inv.eggs}   🪶 ${inv.feathers}`;
+    try { localStorage.setItem(INV_KEY, JSON.stringify(inv)); } catch (e) {}
+  }
+
+  // Click animals to hunt them: first hit makes them hop, second gets the goods.
+  // Villagers are people — they just say hello.
   const animalRay = new THREE.Raycaster();
   function pokeAnimal() {
     animalRay.setFromCamera(new THREE.Vector2(0, 0), camera);
     animalRay.far = 6;
-    for (const a of animals) {
-      if (animalRay.intersectObject(a.group, true).length > 0) {
-        a.vy = 0;
-        a.group.position.y += 0.02;                       // lift off the ground
-        a.vy = 6;                                         // hop!
+    for (let i = 0; i < animals.length; i++) {
+      const a = animals[i];
+      if (animalRay.intersectObject(a.group, true).length === 0) continue;
+
+      if (a.kind.villager) {
+        a.group.position.y += 0.02;
+        a.vy = 6;                                        // happy hop
         blip(700, 0.12);
         setTimeout(() => blip(880, 0.1), 90);
+        toast("The villager says hi! 👋");
         return true;
       }
+
+      a.hp--;
+      if (a.hp > 0) {                                    // ouch — it runs!
+        a.group.position.y += 0.02;
+        a.vy = 5;
+        a.yaw = player.yaw;                              // flee away from you
+        a.speed = 2.5;
+        a.timer = 2;
+        blip(300, 0.1);
+      } else {                                           // got it!
+        const p = a.group.position;
+        spawnCrumbs(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z), a.kind.color);
+        scene.remove(a.group);
+        animals.splice(i, 1);
+        for (const k in a.kind.drops) inv[k] += a.kind.drops[k];
+        updateInv();
+        toast(a.kind.msg);
+        blip(180, 0.15);
+        // a new friend wanders in from somewhere a little later
+        setTimeout(() => spawnOneAnimal(makeRandom(Math.floor(Math.random() * 1e9))), 20000);
+      }
+      return true;
     }
     return false;
+  }
+
+  // ---------------------------------------------------------------- butterflies
+  const butterflies = [];
+
+  function spawnButterflies(count) {
+    for (const b of butterflies) scene.remove(b.group);
+    butterflies.length = 0;
+    const colors = [0xff8fb3, 0xffb84d, 0x7ec8ff, 0xc59fff];
+    for (let i = 0; i < count; i++) {
+      const x = 8 + Math.random() * (WX - 16), z = 8 + Math.random() * (WZ - 16);
+      const gy = groundHeight(Math.floor(x), Math.floor(z));
+      if (gy <= WATER_LEVEL) continue;                   // not over lakes
+      const c = colors[i % colors.length];
+      const g = new THREE.Group();
+      const wingL = box(0.16, 0.02, 0.12, c, -0.09, 0, 0);
+      const wingR = box(0.16, 0.02, 0.12, c, 0.09, 0, 0);
+      g.add(wingL, wingR, box(0.04, 0.05, 0.15, 0x453b2f, 0, 0, 0));
+      g.position.set(x, gy + 2, z);
+      scene.add(g);
+      butterflies.push({ group: g, home: g.position.clone(), phase: Math.random() * 40, wingL, wingR });
+    }
+  }
+
+  function updateButterflies(t) {
+    for (const b of butterflies) {
+      const s = t + b.phase;
+      b.group.position.set(
+        b.home.x + Math.sin(s * 0.6) * 2.2,
+        b.home.y + Math.sin(s * 1.7) * 0.5,
+        b.home.z + Math.cos(s * 0.8) * 2.2
+      );
+      const flap = Math.sin(s * 16) * 0.9;
+      b.wingL.rotation.z = flap;
+      b.wingR.rotation.z = -flap;
+    }
   }
 
   // ---------------------------------------------------------------- block targeting (voxel raycast)
@@ -568,6 +875,41 @@
            z + 1 > p.z - hw && z < p.z + hw;
   }
 
+  // ---------------------------------------------------------------- break particles
+  const particles = [];
+  const particleGeo = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+
+  function spawnCrumbs(x, y, z, color) {
+    for (let i = 0; i < 10; i++) {
+      const m = new THREE.Mesh(particleGeo, new THREE.MeshLambertMaterial({ color }));
+      m.position.set(
+        x + 0.5 + (Math.random() - 0.5) * 0.6,
+        y + 0.5 + (Math.random() - 0.5) * 0.6,
+        z + 0.5 + (Math.random() - 0.5) * 0.6
+      );
+      m.userData.vel = new THREE.Vector3(
+        (Math.random() - 0.5) * 4, 2 + Math.random() * 3, (Math.random() - 0.5) * 4
+      );
+      m.userData.life = 0.5 + Math.random() * 0.3;
+      scene.add(m);
+      particles.push(m);
+    }
+  }
+
+  function updateParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const m = particles[i];
+      m.userData.vel.y -= 18 * dt;
+      m.position.addScaledVector(m.userData.vel, dt);
+      m.userData.life -= dt;
+      if (m.userData.life <= 0) {
+        scene.remove(m);
+        m.material.dispose();
+        particles.splice(i, 1);
+      }
+    }
+  }
+
   // ---------------------------------------------------------------- tiny sound effects
   let audioCtx = null;
   function blip(freq, duration) {
@@ -603,9 +945,10 @@
       label.textContent = BLOCKS[t].name;
       const num = document.createElement("div");
       num.className = "num";
-      num.textContent = i + 1;
+      num.textContent = (i + 1) % 10;   // the key that picks this slot
       slot.appendChild(cube);
       slot.appendChild(label);
+      slot.appendChild(num);
       hotbarEl.appendChild(slot);
     });
   }
@@ -636,6 +979,7 @@
     overlay.style.display = on ? "none" : "flex";
     crosshair.style.display = on ? "block" : "none";
     hotbarEl.style.display = on ? "flex" : "none";
+    invEl.style.display = on ? "block" : "none";
     if (!on) for (const k in keys) keys[k] = false;
   }
 
@@ -661,7 +1005,8 @@
     generateWorld(Math.floor(Math.random() * 1e9));
     rebuildWorldMesh();
     spawnPlayer();
-    spawnAnimals(40);
+    spawnAnimals(55);
+    spawnButterflies(36);
     saveWorld();
     toast("A brand new world! 🌍");
     startGame();
@@ -711,6 +1056,7 @@
     if (e.code.startsWith("Digit")) {
       const n = parseInt(e.code.slice(5), 10);
       if (n >= 1 && n <= HOTBAR.length) selectSlot(n - 1);
+      else if (n === 0 && HOTBAR.length >= 10) selectSlot(9);
     }
   });
   document.addEventListener("keyup", (e) => { keys[e.code] = false; });
@@ -727,9 +1073,11 @@
     if (!hit) return;
 
     if (button === 0) {                                 // break
+      const broken = getBlock(hit.x, hit.y, hit.z);
       setBlock(hit.x, hit.y, hit.z, AIR);
-      rebuildWorldMesh();
+      rebuildAt(hit.x, hit.z);
       saveSoon();
+      spawnCrumbs(hit.x, hit.y, hit.z, BLOCKS[broken] ? BLOCKS[broken].color : 0x888888);
       blip(160, 0.12);
     } else if (button === 2) {                          // place
       const px = hit.x + hit.face[0];
@@ -737,7 +1085,7 @@
       const pz = hit.z + hit.face[2];
       if (inWorld(px, py, pz) && !isSolid(px, py, pz) && !placeWouldTouchPlayer(px, py, pz)) {
         setBlock(px, py, pz, HOTBAR[selected]);
-        rebuildWorldMesh();
+        rebuildAt(px, pz);
         saveSoon();
         blip(420, 0.1);
       }
@@ -768,6 +1116,15 @@
     lastTime = now;
 
     updateAnimals(dt, now / 1000);
+    updateButterflies(now / 1000);
+    updateParticles(dt);
+
+    // clouds drift gently and loop around the world
+    for (const cloud of clouds) {
+      cloud.position.x += 1.1 * dt;
+      if (cloud.position.x > WX + 50) cloud.position.x = -50;
+    }
+    texs.water.offset.x = (now / 9000) % 1;   // water shimmer
 
     if (playing) {
       updatePlayer(dt);
@@ -791,7 +1148,9 @@
   }
   rebuildWorldMesh();
   spawnPlayer();
-  spawnAnimals(40);
+  spawnAnimals(55);
+  spawnButterflies(36);
   buildHotbar();
+  updateInv();
   requestAnimationFrame(frame);
 })();
