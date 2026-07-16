@@ -5,7 +5,7 @@
   "use strict";
 
   // ---------------------------------------------------------------- world size
-  const WX = 64, WY = 40, WZ = 64;     // world dimensions in blocks
+  const WX = 128, WY = 40, WZ = 128;   // world dimensions in blocks
   const WATER_LEVEL = 12;
 
   // ---------------------------------------------------------------- block types
@@ -20,8 +20,9 @@
     7: { name: "Planks", color: 0xc9a05a, solid: true },
     8: { name: "Brick",  color: 0xc4574d, solid: true },
     9: { name: "Water",  color: 0x3f76e4, solid: false, water: true },
+    10: { name: "Craft Table", color: 0xa97d4b, solid: true, craftTable: true },
   };
-  const HOTBAR = [1, 2, 3, 4, 5, 6, 7, 8]; // placeable blocks on keys 1-8
+  const HOTBAR = [1, 2, 3, 4, 5, 6, 7, 8, 10]; // placeable blocks on keys 1-9
 
   const world = new Uint8Array(WX * WY * WZ);
   const idx = (x, y, z) => (y * WZ + z) * WX + x;
@@ -83,7 +84,7 @@
     }
 
     // trees
-    for (let i = 0; i < 26; i++) {
+    for (let i = 0; i < 110; i++) {
       const x = 3 + Math.floor(rand() * (WX - 6));
       const z = 3 + Math.floor(rand() * (WZ - 6));
       let top = -1;
@@ -114,7 +115,7 @@
   }
 
   // ---------------------------------------------------------------- save / load
-  const SAVE_KEY = "blockworld-save-v1";
+  const SAVE_KEY = "blockworld-save-v2"; // v2: world grew to 128x128
 
   function saveWorld() {
     try {
@@ -149,7 +150,7 @@
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87ceeb);
-  scene.fog = new THREE.Fog(0x87ceeb, 40, 110);
+  scene.fog = new THREE.Fog(0x87ceeb, 50, 140);
 
   const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 300);
 
@@ -169,12 +170,42 @@
   // ---------------------------------------------------------------- world meshing
   // One InstancedMesh per block type, holding every block that touches air.
   const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+
+  // pixel-art texture for the crafting table: planks, a 2x2 grid top, tool marks
+  function makeCraftTableTexture() {
+    const c = document.createElement("canvas");
+    c.width = c.height = 16;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#a97d4b";                   // planks
+    ctx.fillRect(0, 0, 16, 16);
+    ctx.fillStyle = "#8a6238";                   // plank seams
+    for (let y = 3; y < 16; y += 4) ctx.fillRect(0, y, 16, 1);
+    ctx.fillStyle = "#5d3f1f";                   // dark border
+    ctx.fillRect(0, 0, 16, 2); ctx.fillRect(0, 14, 16, 2);
+    ctx.fillRect(0, 0, 2, 16); ctx.fillRect(14, 0, 2, 16);
+    ctx.fillStyle = "#5d3f1f";                   // 2x2 crafting grid
+    ctx.fillRect(4, 4, 8, 1); ctx.fillRect(4, 11, 8, 1);
+    ctx.fillRect(4, 4, 1, 8); ctx.fillRect(11, 4, 1, 8);
+    ctx.fillRect(7, 4, 1, 8); ctx.fillRect(4, 7, 8, 1);
+    ctx.fillStyle = "#c0392b";                   // little tool marks
+    ctx.fillRect(5, 5, 2, 2);
+    ctx.fillStyle = "#95a5a6";
+    ctx.fillRect(9, 8, 2, 2);
+    const tex = new THREE.CanvasTexture(c);
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    return tex;
+  }
+
   const materials = {};
   for (const t in BLOCKS) {
     const b = BLOCKS[t];
-    materials[t] = b.water
-      ? new THREE.MeshLambertMaterial({ color: b.color, transparent: true, opacity: 0.65 })
-      : new THREE.MeshLambertMaterial({ color: b.color });
+    if (b.water)
+      materials[t] = new THREE.MeshLambertMaterial({ color: b.color, transparent: true, opacity: 0.65 });
+    else if (b.craftTable)
+      materials[t] = new THREE.MeshLambertMaterial({ map: makeCraftTableTexture() });
+    else
+      materials[t] = new THREE.MeshLambertMaterial({ color: b.color });
   }
   let typeMeshes = {};
 
@@ -322,6 +353,180 @@
     updateCamera();
   }
 
+  // ---------------------------------------------------------------- animals
+  const animals = [];
+
+  function box(w, h, d, color, x, y, z) {
+    const m = new THREE.Mesh(
+      new THREE.BoxGeometry(w, h, d),
+      new THREE.MeshLambertMaterial({ color })
+    );
+    m.position.set(x, y, z);
+    return m;
+  }
+
+  // Each builder returns { group, legs } with the animal facing +Z.
+  function buildPig() {
+    const g = new THREE.Group();
+    const pink = 0xf0a0a8, dark = 0xd97f8a;
+    g.add(box(0.6, 0.5, 0.9, pink, 0, 0.55, 0));          // body
+    g.add(box(0.45, 0.42, 0.35, pink, 0, 0.72, 0.6));     // head
+    g.add(box(0.2, 0.14, 0.08, dark, 0, 0.66, 0.8));      // snout
+    const legs = [
+      box(0.16, 0.35, 0.16, dark, -0.2, 0.18, 0.3),
+      box(0.16, 0.35, 0.16, dark, 0.2, 0.18, 0.3),
+      box(0.16, 0.35, 0.16, dark, -0.2, 0.18, -0.3),
+      box(0.16, 0.35, 0.16, dark, 0.2, 0.18, -0.3),
+    ];
+    legs.forEach(l => g.add(l));
+    return { group: g, legs };
+  }
+
+  function buildSheep() {
+    const g = new THREE.Group();
+    const wool = 0xf5f5f0, skin = 0xcfae95;
+    g.add(box(0.7, 0.6, 1.0, wool, 0, 0.75, 0));          // fluffy body
+    g.add(box(0.35, 0.38, 0.35, skin, 0, 0.95, 0.62));    // head
+    g.add(box(0.42, 0.25, 0.25, wool, 0, 1.1, 0.55));     // wool hat
+    const legs = [
+      box(0.15, 0.45, 0.15, skin, -0.22, 0.23, 0.33),
+      box(0.15, 0.45, 0.15, skin, 0.22, 0.23, 0.33),
+      box(0.15, 0.45, 0.15, skin, -0.22, 0.23, -0.33),
+      box(0.15, 0.45, 0.15, skin, 0.22, 0.23, -0.33),
+    ];
+    legs.forEach(l => g.add(l));
+    return { group: g, legs };
+  }
+
+  function buildChicken() {
+    const g = new THREE.Group();
+    const white = 0xfafafa, beak = 0xf2a71b, comb = 0xe04b3f, leg = 0xf2a71b;
+    g.add(box(0.35, 0.35, 0.5, white, 0, 0.42, 0));       // body
+    g.add(box(0.25, 0.3, 0.25, white, 0, 0.7, 0.28));     // head
+    g.add(box(0.1, 0.08, 0.12, beak, 0, 0.68, 0.45));     // beak
+    g.add(box(0.08, 0.1, 0.12, comb, 0, 0.87, 0.28));     // comb
+    const legs = [
+      box(0.07, 0.25, 0.07, leg, -0.09, 0.12, 0),
+      box(0.07, 0.25, 0.07, leg, 0.09, 0.12, 0),
+    ];
+    legs.forEach(l => g.add(l));
+    return { group: g, legs };
+  }
+
+  function buildVillager() {
+    const robes = [0x7a5b3a, 0x5b7a3a, 0x6a4a7a];
+    const robe = robes[Math.floor(Math.random() * robes.length)];
+    const skin = 0xd8a77b, hair = 0x4a3320;
+    const g = new THREE.Group();
+    g.add(box(0.5, 0.95, 0.3, robe, 0, 0.48, 0));         // robe
+    g.add(box(0.4, 0.4, 0.4, skin, 0, 1.16, 0));          // head
+    g.add(box(0.09, 0.22, 0.09, skin, 0, 1.06, 0.22));    // the big nose
+    g.add(box(0.42, 0.1, 0.42, hair, 0, 1.4, 0));         // hair
+    const arms = [                                        // arms swing like legs
+      box(0.13, 0.55, 0.13, robe, -0.32, 0.65, 0),
+      box(0.13, 0.55, 0.13, robe, 0.32, 0.65, 0),
+    ];
+    arms.forEach(a => g.add(a));
+    return { group: g, legs: arms };
+  }
+
+  const ANIMAL_KINDS = [buildPig, buildSheep, buildChicken, buildChicken, buildVillager];
+
+  function spawnAnimals(count) {
+    for (const a of animals) scene.remove(a.group);
+    animals.length = 0;
+    const rand = makeRandom(Math.floor(Math.random() * 1e9));
+    let tries = 0;
+    while (animals.length < count && tries++ < count * 30) {
+      const x = 4 + Math.floor(rand() * (WX - 8));
+      const z = 4 + Math.floor(rand() * (WZ - 8));
+      const gy = groundHeight(x, z);
+      if (getBlock(x, gy, z) !== 1) continue;            // only on grass
+      const kind = ANIMAL_KINDS[Math.floor(rand() * ANIMAL_KINDS.length)]();
+      kind.group.position.set(x + 0.5, gy + 1, z + 0.5);
+      scene.add(kind.group);
+      animals.push({
+        group: kind.group, legs: kind.legs,
+        yaw: rand() * Math.PI * 2,
+        speed: 0, vy: 0,
+        timer: rand() * 4,
+        walkPhase: rand() * 10,
+      });
+    }
+  }
+
+  function updateAnimals(dt, time) {
+    for (const a of animals) {
+      // every few seconds: pick a new plan (wander or rest)
+      a.timer -= dt;
+      if (a.timer <= 0) {
+        a.timer = 1.5 + Math.random() * 4;
+        if (Math.random() < 0.55) {
+          a.yaw = Math.random() * Math.PI * 2;
+          a.speed = 1.1;
+        } else {
+          a.speed = 0;
+        }
+      }
+
+      const p = a.group.position;
+      if (a.speed > 0) {
+        const nx = p.x + Math.sin(a.yaw) * a.speed * dt;
+        const nz = p.z + Math.cos(a.yaw) * a.speed * dt;
+        const bx = Math.floor(nx), bz = Math.floor(nz);
+        const gy = groundHeight(bx, bz);
+        const stepOk = inWorld(bx, 0, bz) &&
+                       Math.abs((gy + 1) - p.y) <= 1.05 &&
+                       !isWater(bx, gy + 1, bz);
+        if (stepOk) {
+          p.x = nx; p.z = nz;
+        } else {
+          a.yaw += Math.PI * (0.5 + Math.random());       // blocked: turn away
+          a.timer = Math.min(a.timer, 1);
+        }
+      }
+
+      // stick to the ground (falls if you dig it away, rises if you build)
+      const gy = groundHeight(Math.floor(p.x), Math.floor(p.z)) + 1;
+      if (p.y > gy + 0.01) {
+        a.vy -= GRAVITY * dt;
+        p.y = Math.max(p.y + a.vy * dt, gy);
+      } else {
+        p.y = gy;
+        a.vy = 0;
+      }
+
+      // face where it walks, waddle the legs
+      a.group.rotation.y = a.yaw;
+      if (a.speed > 0 && p.y === gy) {
+        a.walkPhase += dt * 9;
+        a.legs.forEach((l, i) => {
+          l.rotation.x = Math.sin(a.walkPhase + (i % 2) * Math.PI) * 0.6;
+        });
+      } else {
+        a.legs.forEach(l => { l.rotation.x *= 0.8; });
+      }
+    }
+  }
+
+  // click an animal to make it hop!
+  const animalRay = new THREE.Raycaster();
+  function pokeAnimal() {
+    animalRay.setFromCamera(new THREE.Vector2(0, 0), camera);
+    animalRay.far = 6;
+    for (const a of animals) {
+      if (animalRay.intersectObject(a.group, true).length > 0) {
+        a.vy = 0;
+        a.group.position.y += 0.02;                       // lift off the ground
+        a.vy = 6;                                         // hop!
+        blip(700, 0.12);
+        setTimeout(() => blip(880, 0.1), 90);
+        return true;
+      }
+    }
+    return false;
+  }
+
   // ---------------------------------------------------------------- block targeting (voxel raycast)
   function raycastBlock(maxDist) {
     const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
@@ -456,6 +661,7 @@
     generateWorld(Math.floor(Math.random() * 1e9));
     rebuildWorldMesh();
     spawnPlayer();
+    spawnAnimals(40);
     saveWorld();
     toast("A brand new world! 🌍");
     startGame();
@@ -516,6 +722,7 @@
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
   function breakOrPlace(button) {
+    if (button === 0 && pokeAnimal()) return;           // pet before you dig!
     const hit = raycastBlock(6);
     if (!hit) return;
 
@@ -560,6 +767,8 @@
     const dt = Math.min((now - lastTime) / 1000, 0.05);
     lastTime = now;
 
+    updateAnimals(dt, now / 1000);
+
     if (playing) {
       updatePlayer(dt);
       const hit = raycastBlock(6);
@@ -582,6 +791,7 @@
   }
   rebuildWorldMesh();
   spawnPlayer();
+  spawnAnimals(40);
   buildHotbar();
   requestAnimationFrame(frame);
 })();

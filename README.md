@@ -22,16 +22,20 @@ That's it. No installing, no internet needed after you download it.
 | **SPACE** | Jump (and swim up in water!) |
 | **Left click** | Break a block 👊 |
 | **Right click** | Place a block 🧱 |
-| **Keys 1–8** (or scroll wheel) | Choose which block to build with |
+| **Keys 1–9** (or scroll wheel) | Choose which block to build with |
+| **Click an animal or villager** | Say hi and watch it hop! 🐷 |
 | **ESC** | Pause and see the menu |
 
 ## 🌍 Fun things to know
 
-- Every world has hills, lakes, beaches, and trees.
+- Every world is big (128×128 blocks!) with hills, lakes, beaches, and forests.
+- **Pigs 🐷, sheep 🐑, and chickens 🐔** wander around — click one to make it hop!
+- **Villagers** live here too — the little people with big noses and robes.
+- You can build with grass, dirt, stone, sand, wood, leaves, planks, brick,
+  and **crafting tables** (key 9).
 - Your world **saves itself automatically** — close the game and your
   buildings will still be there next time!
 - Want to start over? Click **"Make a brand new world"** on the menu.
-- You can build with grass, dirt, stone, sand, wood, leaves, planks, and brick.
 
 ## 📁 What's in this folder
 
