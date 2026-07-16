@@ -422,10 +422,35 @@
   const overlay = document.getElementById("overlay");
   const crosshair = document.getElementById("crosshair");
   let playing = false;
+  // When the browser won't let us grab the mouse (e.g. inside an embedded
+  // page), we fall back to "drag the mouse to look around" controls.
+  let dragLook = false;
 
-  document.getElementById("playBtn").addEventListener("click", () => {
-    canvas.requestPointerLock();
-  });
+  function setPlaying(on) {
+    playing = on;
+    overlay.style.display = on ? "none" : "flex";
+    crosshair.style.display = on ? "block" : "none";
+    hotbarEl.style.display = on ? "flex" : "none";
+    if (!on) for (const k in keys) keys[k] = false;
+  }
+
+  function startGame() {
+    dragLook = false;
+    try {
+      const p = canvas.requestPointerLock();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) { /* fall through to drag-look mode */ }
+    // If the pointer didn't actually lock shortly after, use drag-look mode.
+    setTimeout(() => {
+      if (document.pointerLockElement !== canvas) {
+        dragLook = true;
+        setPlaying(true);
+        toast("Drag the mouse to look around 👀");
+      }
+    }, 300);
+  }
+
+  document.getElementById("playBtn").addEventListener("click", startGame);
 
   document.getElementById("newWorldBtn").addEventListener("click", () => {
     generateWorld(Math.floor(Math.random() * 1e9));
@@ -433,23 +458,44 @@
     spawnPlayer();
     saveWorld();
     toast("A brand new world! 🌍");
-    canvas.requestPointerLock();
+    startGame();
   });
 
   document.addEventListener("pointerlockchange", () => {
-    playing = document.pointerLockElement === canvas;
-    overlay.style.display = playing ? "none" : "flex";
-    crosshair.style.display = playing ? "block" : "none";
-    hotbarEl.style.display = playing ? "flex" : "none";
-    if (!playing) for (const k in keys) keys[k] = false;
+    if (document.pointerLockElement === canvas) {
+      dragLook = false;
+      setPlaying(true);
+    } else if (!dragLook) {
+      setPlaying(false);
+    }
   });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.code === "Escape" && dragLook && playing) {
+      dragLook = false;
+      setPlaying(false);
+    }
+  });
+
+  let dragging = false, dragMoved = 0;
+
+  function look(dx, dy) {
+    player.yaw += dx * 0.0026;
+    player.pitch += dy * 0.0026;
+    const lim = Math.PI / 2 - 0.01;
+    player.pitch = Math.max(-lim, Math.min(lim, player.pitch));
+  }
 
   document.addEventListener("mousemove", (e) => {
     if (!playing) return;
-    player.yaw += e.movementX * 0.0026;
-    player.pitch += e.movementY * 0.0026;
-    const lim = Math.PI / 2 - 0.01;
-    player.pitch = Math.max(-lim, Math.min(lim, player.pitch));
+    if (dragLook) {
+      if (dragging) {
+        look(e.movementX, e.movementY);
+        dragMoved += Math.abs(e.movementX) + Math.abs(e.movementY);
+      }
+    } else {
+      look(e.movementX, e.movementY);
+    }
   });
 
   document.addEventListener("keydown", (e) => {
@@ -469,17 +515,16 @@
 
   canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
-  document.addEventListener("mousedown", (e) => {
-    if (!playing) return;
+  function breakOrPlace(button) {
     const hit = raycastBlock(6);
     if (!hit) return;
 
-    if (e.button === 0) {                               // break
+    if (button === 0) {                                 // break
       setBlock(hit.x, hit.y, hit.z, AIR);
       rebuildWorldMesh();
       saveSoon();
       blip(160, 0.12);
-    } else if (e.button === 2) {                        // place
+    } else if (button === 2) {                          // place
       const px = hit.x + hit.face[0];
       const py = hit.y + hit.face[1];
       const pz = hit.z + hit.face[2];
@@ -490,6 +535,22 @@
         blip(420, 0.1);
       }
     }
+  }
+
+  document.addEventListener("mousedown", (e) => {
+    if (!playing) return;
+    if (dragLook) {
+      dragging = true;
+      dragMoved = 0;
+    } else {
+      breakOrPlace(e.button);
+    }
+  });
+
+  document.addEventListener("mouseup", (e) => {
+    if (!playing || !dragLook || !dragging) return;
+    dragging = false;
+    if (dragMoved < 6) breakOrPlace(e.button);          // a click, not a drag
   });
 
   // ---------------------------------------------------------------- main loop
