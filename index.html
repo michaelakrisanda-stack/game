@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Block World ⛏️</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; overflow: hidden; height: 100%;
+    font-family: "Comic Sans MS", "Chalkboard SE", "Comic Neue", sans-serif;
+    background: #000;
+    user-select: none; -webkit-user-select: none;
+  }
+  #game { display: block; width: 100%; height: 100%; }
+
+  /* ---------- crosshair ---------- */
+  #crosshair {
+    position: fixed; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 22px; color: white; text-shadow: 0 0 4px black;
+    pointer-events: none; display: none;
+  }
+
+  /* ---------- hotbar ---------- */
+  #hotbar {
+    position: fixed; bottom: 12px; left: 50%;
+    transform: translateX(-50%);
+    display: none; gap: 6px;
+  }
+  .slot {
+    width: 54px; height: 54px; border-radius: 10px;
+    border: 3px solid rgba(255,255,255,0.55);
+    background: rgba(0,0,0,0.45);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    color: white; font-size: 11px; text-shadow: 1px 1px 2px black;
+    pointer-events: none;
+  }
+  .slot .cube {
+    width: 26px; height: 26px; border-radius: 5px;
+    border: 2px solid rgba(0,0,0,0.35);
+    margin-bottom: 2px;
+  }
+  .slot.selected {
+    border-color: #ffe14d;
+    background: rgba(60,60,0,0.5);
+    transform: scale(1.12);
+  }
+  .slot .num { font-size: 10px; opacity: 0.8; }
+
+  /* ---------- start / pause screen ---------- */
+  #overlay {
+    position: fixed; inset: 0;
+    background: linear-gradient(#4aa8ff, #a8e0ff);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; z-index: 10;
+  }
+  #overlay h1 {
+    font-size: 56px; margin: 0 0 10px;
+    color: #ffffff;
+    text-shadow: 3px 3px 0 #2b6f2b, 6px 6px 0 rgba(0,0,0,0.25);
+    letter-spacing: 2px;
+  }
+  #overlay .card {
+    background: rgba(255,255,255,0.9);
+    border-radius: 20px;
+    padding: 22px 34px;
+    box-shadow: 0 8px 0 rgba(0,0,0,0.15);
+    font-size: 20px; color: #333; line-height: 1.9;
+  }
+  #overlay .card b { color: #1b7a1b; }
+  #playBtn {
+    margin-top: 24px;
+    font-family: inherit;
+    font-size: 30px; font-weight: bold;
+    padding: 14px 60px;
+    border: none; border-radius: 16px;
+    background: #3ecf3e; color: white;
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.25);
+    box-shadow: 0 6px 0 #2a8f2a;
+    cursor: pointer;
+  }
+  #playBtn:active { transform: translateY(4px); box-shadow: 0 2px 0 #2a8f2a; }
+  #newWorldBtn {
+    margin-top: 14px;
+    font-family: inherit;
+    font-size: 16px;
+    padding: 8px 22px;
+    border: none; border-radius: 12px;
+    background: #ff9f43; color: white;
+    box-shadow: 0 4px 0 #c46f1b;
+    cursor: pointer;
+  }
+  #newWorldBtn:active { transform: translateY(3px); box-shadow: 0 1px 0 #c46f1b; }
+
+  #toast {
+    position: fixed; top: 18px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.6); color: white;
+    padding: 8px 20px; border-radius: 12px;
+    font-size: 18px; display: none; z-index: 5;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="crosshair">＋</div>
+  <div id="hotbar"></div>
+  <div id="toast"></div>
+
+  <div id="overlay">
+    <h1>⛏️ BLOCK WORLD 🌳</h1>
+    <div class="card">
+      🖱️ <b>Move the mouse</b> to look around<br>
+      ⌨️ <b>W A S D</b> to walk &nbsp;•&nbsp; <b>SPACE</b> to jump<br>
+      👊 <b>Left click</b> to break a block<br>
+      🧱 <b>Right click</b> to place a block<br>
+      🔢 <b>Keys 1–8</b> to pick your block<br>
+      🚪 <b>ESC</b> to take a break
+    </div>
+    <button id="playBtn">▶ PLAY</button>
+    <button id="newWorldBtn">🌍 Make a brand new world</button>
+  </div>
+
+  <script src="three.min.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
