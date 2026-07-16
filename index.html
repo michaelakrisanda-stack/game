@@ -112,6 +112,14 @@
     pointer-events: none; white-space: pre;
   }
 
+  #hunger {
+    position: fixed; top: 62px; right: 14px;
+    background: rgba(0,0,0,0.4); color: white;
+    padding: 6px 12px; border-radius: 10px;
+    font-size: 13px; display: none;
+    pointer-events: none; letter-spacing: 1px;
+  }
+
   #toast {
     position: fixed; top: 18px; left: 50%;
     transform: translateX(-50%);
@@ -127,6 +135,7 @@
   <div id="crosshair">＋</div>
   <div id="hotbar"></div>
   <div id="inv"></div>
+  <div id="hunger"></div>
   <div id="toast"></div>
 
   <div id="overlay">
@@ -138,6 +147,7 @@
       🧱 <b>Right click</b> to place a block<br>
       🔢 <b>Number keys</b> to pick your block<br>
       🍖 <b>Click animals</b> to hunt for meat, eggs &amp; feathers<br>
+      🍗 <b>Press E</b> to eat when you get hungry<br>
       🚪 <b>ESC</b> to take a break
     </div>
     <button id="playBtn">▶ PLAY</button>

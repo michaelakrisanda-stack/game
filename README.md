@@ -25,12 +25,19 @@ That's it. No installing, no internet needed after you download it.
 | **Number keys** (or scroll wheel) | Choose which block to build with |
 | **Click an animal** | Hunt it for meat, eggs & feathers 🍖 |
 | **Click a villager** | They just say hi — villagers are friends 👋 |
+| **E** | Eat meat or eggs when you're hungry 🍗 |
 | **ESC** | Pause and see the menu |
 
 ## 🌍 Fun things to know
 
 - Every world is gigantic (256×256 blocks!) with hills, lakes, beaches, and forests.
-- **Meadows full of flowers** 🌼 with **butterflies** fluttering around.
+- **Real shadows!** The sun casts shadows from trees, hills, animals — and you
+  can watch them stretch across the land.
+- **Meadows full of flowers and wild grass** 🌼 with **butterflies** fluttering
+  around, **birds** circling in the sky, and birdsong now and then.
+- **You get hungry** as you explore — the drumstick bar 🍗 shows how hungry.
+  Press **E** to eat meat or eggs. Too hungry and you'll walk slowly!
+- Walking feels real: your view gently bobs and you hear soft footsteps.
 - **Hunt animals** to collect 🍖 meat, 🥚 eggs, and 🪶 feathers — your food
   pouch in the corner keeps count. New animals wander in over time.
 - **Mountains** ⛰️ reach up into the sky — the tallest ones have snowy tops!

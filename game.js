@@ -25,6 +25,7 @@
     11: { name: "Snow", color: 0xf4f8fb, solid: true },
     12: { name: "Flower", color: 0xe74c3c, solid: false, flower: true },
     13: { name: "Flower", color: 0xf1c40f, solid: false, flower: true },
+    14: { name: "Wild Grass", color: 0x4da83c, solid: false, flower: true },
   };
   const HOTBAR = [1, 2, 3, 4, 5, 6, 7, 8, 10, 11]; // keys 1-9, then 0 for snow
 
@@ -136,14 +137,16 @@
         if (getBlock(x, y, z) !== AIR) { top = y; break; }
       }
       if (top < 0 || getBlock(x, top, z) !== 1) continue; // only on grass
-      const trunkH = 3 + Math.floor(rand() * 3);
+      const big = rand() < 0.25;                          // some trees are big oaks
+      const trunkH = big ? 5 + Math.floor(rand() * 3) : 3 + Math.floor(rand() * 3);
+      const R = big ? 3 : 2;
       for (let y = 1; y <= trunkH; y++) setBlock(x, top + y, z, 5);
       const ly = top + trunkH;
-      for (let dx = -2; dx <= 2; dx++) {
-        for (let dz = -2; dz <= 2; dz++) {
-          for (let dy = 0; dy <= 2; dy++) {
+      for (let dx = -R; dx <= R; dx++) {
+        for (let dz = -R; dz <= R; dz++) {
+          for (let dy = 0; dy <= R; dy++) {
             const d = Math.abs(dx) + Math.abs(dz) + dy;
-            if (d > 3 && !(dy === 0 && d <= 4)) continue;
+            if (d > R + 1 && !(dy === 0 && d <= R + 2)) continue;
             if (dx === 0 && dz === 0 && dy < 2) continue; // keep trunk visible
             if (getBlock(x + dx, ly + dy, z + dz) === AIR)
               setBlock(x + dx, ly + dy, z + dz, 6);
@@ -152,12 +155,14 @@
       }
     }
 
-    // flowers sprinkled across the meadows
-    for (let i = 0; i < 900; i++) {
+    // flowers and wild grass sprinkled across the meadows
+    for (let i = 0; i < 3200; i++) {
       const x = Math.floor(rand() * WX), z = Math.floor(rand() * WZ);
       const gy = groundHeight(x, z);
-      if (getBlock(x, gy, z) === 1 && getBlock(x, gy + 1, z) === AIR)
-        setBlock(x, gy + 1, z, rand() < 0.5 ? 12 : 13);
+      if (getBlock(x, gy, z) === 1 && getBlock(x, gy + 1, z) === AIR) {
+        const r = rand();
+        setBlock(x, gy + 1, z, r < 0.6 ? 14 : r < 0.8 ? 12 : 13);
+      }
     }
   }
 
@@ -213,16 +218,55 @@
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x87ceeb);
-  scene.fog = new THREE.Fog(0x87ceeb, 60, 200);
+  scene.background = new THREE.Color(0xbfe3ff);
+  scene.fog = new THREE.Fog(0xbfe3ff, 60, 200);
 
-  const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 420);
+  const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 900);
+
+  // real shadows from the sun
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const sun = new THREE.DirectionalLight(0xfff4d6, 0.95);
-  sun.position.set(0.6, 1, 0.4);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -70; sun.shadow.camera.right = 70;
+  sun.shadow.camera.top = 70;   sun.shadow.camera.bottom = -70;
+  sun.shadow.camera.near = 10;  sun.shadow.camera.far = 320;
+  sun.shadow.bias = -0.0006;
   scene.add(sun);
+  scene.add(sun.target);
   scene.add(new THREE.HemisphereLight(0xcfe5ff, 0x9a8a6a, 0.5));
   scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+
+  // the sun's shadows follow you around the world
+  function updateSunShadow() {
+    const p = player.pos;
+    sun.position.set(p.x + 60, p.y + 110, p.z + 40);
+    sun.target.position.set(p.x, p.y, p.z);
+  }
+
+  // a big sky dome: deep blue overhead melting into haze at the horizon
+  const sky = (() => {
+    const c = document.createElement("canvas");
+    c.width = 1; c.height = 128;
+    const ctx = c.getContext("2d");
+    const grad = ctx.createLinearGradient(0, 0, 0, 128);
+    grad.addColorStop(0, "#2f7fd6");
+    grad.addColorStop(0.55, "#7db9ef");
+    grad.addColorStop(0.8, "#bfe3ff");
+    grad.addColorStop(1, "#d8ecff");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1, 128);
+    const tex = new THREE.CanvasTexture(c);
+    const dome = new THREE.Mesh(
+      new THREE.SphereGeometry(600, 24, 16),
+      new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, depthWrite: false })
+    );
+    dome.renderOrder = -2;
+    scene.add(dome);
+    return dome;
+  })();
 
   // a friendly sun you can see in the sky
   const sunBall = new THREE.Mesh(
@@ -231,6 +275,7 @@
   );
   sunBall.position.set(WX / 2 + 90, 80, WZ / 2 + 60);
   sunBall.lookAt(WX / 2, 15, WZ / 2);
+  sunBall.renderOrder = -1;
   scene.add(sunBall);
 
   // fluffy clouds drifting across the sky
@@ -356,6 +401,14 @@
       ctx.fillStyle = "#f1c40f"; ctx.fillRect(4, 2, 8, 7);
       ctx.fillStyle = "#e67e22"; ctx.fillRect(7, 4, 2, 2);
     }),
+    wildGrass: makeTexture(ctx => {
+      ctx.fillStyle = "#4da83c";                          // blades of grass
+      for (const [x, h] of [[2, 9], [5, 12], [8, 10], [11, 13], [13, 8]])
+        ctx.fillRect(x, 16 - h, 2, h);
+      ctx.fillStyle = "#63c24f";
+      for (const [x, h] of [[4, 7], [7, 11], [10, 6]])
+        ctx.fillRect(x, 16 - h, 1, h);
+    }),
     craftSide: makeTexture(ctx => {
       speckle(ctx, "#a97d4b", "#8a6238", "#b98d5b", 25);
       ctx.fillStyle = "#5d3f1f";
@@ -382,12 +435,14 @@
     6: lam(texs.leaves),
     7: lam(texs.planks),
     8: lam(texs.brick),
-    9: lam(texs.water, { transparent: true, opacity: 0.7 }),
+    9: new THREE.MeshPhongMaterial({ map: texs.water, transparent: true, opacity: 0.7,
+                                     shininess: 90, specular: 0x9ec4ff }),
     10: [lam(texs.craftSide), lam(texs.craftSide), lam(texs.craftTop),
          lam(texs.planks), lam(texs.craftSide), lam(texs.craftSide)],
     11: lam(texs.snow),
     12: lam(texs.flowerRed, { transparent: true, alphaTest: 0.4 }),
     13: lam(texs.flowerYellow, { transparent: true, alphaTest: 0.4 }),
+    14: lam(texs.wildGrass, { transparent: true, alphaTest: 0.4 }),
   };
 
   // flowers are drawn as slim little boxes, not full cubes
@@ -435,6 +490,12 @@
         mesh.setMatrixAt(i / 3, m4);
       }
       mesh.instanceMatrix.needsUpdate = true;
+      if (!BLOCKS[t].flower && !BLOCKS[t].water) {
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+      } else if (BLOCKS[t].water) {
+        mesh.receiveShadow = true;
+      }
       scene.add(mesh);
       meshes.push(mesh);
     }
@@ -445,6 +506,21 @@
     for (let cx = 0; cx < WX / CHUNK; cx++)
       for (let cz = 0; cz < WZ / CHUNK; cz++)
         rebuildChunk(cx, cz);
+  }
+
+  // hide chunks that are hidden behind the fog anyway — a big speed boost
+  let cullClock = 0;
+  function updateChunkVisibility(dt) {
+    cullClock -= dt;
+    if (cullClock > 0) return;
+    cullClock = 0.5;
+    for (const [key, meshes] of chunkMeshes) {
+      const c = key.split(",");
+      const dx = (+c[0] + 0.5) * CHUNK - player.pos.x;
+      const dz = (+c[1] + 0.5) * CHUNK - player.pos.z;
+      const visible = dx * dx + dz * dz < 240 * 240;
+      for (const m of meshes) m.visible = visible;
+    }
   }
 
   // redraw the chunk containing (x,z), plus neighbors when on a border
@@ -526,6 +602,7 @@
 
   const keys = {};
   const GRAVITY = 26, JUMP = 9, SPEED = 5.4;
+  let bobPhase = 0, lastBobSin = 0;
 
   function updatePlayer(dt) {
     const inWater = bodyInWater();
@@ -539,9 +616,23 @@
     const len = Math.hypot(mx, mz);
     if (len > 0) { mx /= len; mz /= len; }
     const sin = Math.sin(player.yaw), cos = Math.cos(player.yaw);
-    const speed = inWater ? SPEED * 0.6 : SPEED;
+    let speed = inWater ? SPEED * 0.6 : SPEED;
+    if (inv.hunger <= 2) speed *= 0.6;        // too hungry to run — eat something!
     player.vel.x = (mx * cos - mz * sin) * speed;
     player.vel.z = (mx * sin + mz * cos) * speed;
+
+    // walking makes you hungry over time
+    if (len > 0) {
+      hungerClock += dt;
+      if (hungerClock > 30) {
+        hungerClock = 0;
+        if (inv.hunger > 0) {
+          inv.hunger--;
+          updateHunger();
+          if (inv.hunger === 3) toast("Getting hungry! Press E to eat 🍗");
+        }
+      }
+    }
 
     // gravity, jumping, swimming
     player.vel.y -= GRAVITY * dt;
@@ -573,6 +664,15 @@
     if (p.y < -12) spawnPlayer();
 
     updateCamera();
+
+    // a gentle bounce while walking, with soft footsteps
+    if (len > 0 && player.onGround) {
+      bobPhase += dt * 9;
+      const s = Math.sin(bobPhase);
+      camera.position.y += s * 0.055;
+      if (s < 0 && lastBobSin >= 0) blip(90 + Math.random() * 25, 0.04, 0.02);
+      lastBobSin = s;
+    }
   }
 
   // ---------------------------------------------------------------- animals
@@ -584,6 +684,7 @@
       new THREE.MeshLambertMaterial({ color })
     );
     m.position.set(x, y, z);
+    m.castShadow = true;
     return m;
   }
 
@@ -745,13 +846,39 @@
 
   // ------- your food pouch -------
   const INV_KEY = "blockworld-inv-v1";
-  const inv = { meat: 0, eggs: 0, feathers: 0 };
+  const inv = { meat: 0, eggs: 0, feathers: 0, hunger: 10 };
   try { Object.assign(inv, JSON.parse(localStorage.getItem(INV_KEY) || "{}")); } catch (e) {}
   const invEl = document.getElementById("inv");
+  const hungerEl = document.getElementById("hunger");
+  let hungerClock = 0;
 
   function updateInv() {
     invEl.textContent = `🍖 ${inv.meat}   🥚 ${inv.eggs}   🪶 ${inv.feathers}`;
     try { localStorage.setItem(INV_KEY, JSON.stringify(inv)); } catch (e) {}
+  }
+
+  function updateHunger() {
+    hungerEl.textContent = "🍗".repeat(inv.hunger) + "▫️".repeat(10 - inv.hunger);
+    try { localStorage.setItem(INV_KEY, JSON.stringify(inv)); } catch (e) {}
+  }
+
+  // press E to eat: meat first, then eggs
+  function eat() {
+    if (inv.hunger >= 10) { toast("You're full! 😊"); return; }
+    if (inv.meat > 0) {
+      inv.meat--;
+      inv.hunger = Math.min(10, inv.hunger + 4);
+    } else if (inv.eggs > 0) {
+      inv.eggs--;
+      inv.hunger = Math.min(10, inv.hunger + 2);
+    } else {
+      toast("No food yet — go hunting! 🍖");
+      return;
+    }
+    toast("Yum! 😋");
+    blip(140, 0.08); setTimeout(() => blip(110, 0.08), 110); setTimeout(() => blip(130, 0.08), 220);
+    updateInv();
+    updateHunger();
   }
 
   // Click animals to hunt them: first hit makes them hop, second gets the goods.
@@ -834,6 +961,56 @@
     }
   }
 
+  // ---------------------------------------------------------------- birds
+  const birds = [];
+
+  function spawnBirds(count) {
+    for (const b of birds) scene.remove(b.group);
+    birds.length = 0;
+    for (let i = 0; i < count; i++) {
+      const g = new THREE.Group();
+      const wingL = box(0.55, 0.03, 0.18, 0x4a4a52, -0.3, 0, 0);
+      const wingR = box(0.55, 0.03, 0.18, 0x4a4a52, 0.3, 0, 0);
+      g.add(wingL, wingR, box(0.12, 0.1, 0.42, 0x5c5c66, 0, 0, 0));
+      scene.add(g);
+      birds.push({
+        group: g, wingL, wingR,
+        cx: 20 + Math.random() * (WX - 40),
+        cz: 20 + Math.random() * (WZ - 40),
+        r: 10 + Math.random() * 14,
+        h: 40 + Math.random() * 12,
+        speed: 0.12 + Math.random() * 0.1,
+        phase: Math.random() * 100,
+      });
+    }
+  }
+
+  function updateBirds(t) {
+    for (const b of birds) {
+      const a = t * b.speed + b.phase;
+      b.group.position.set(
+        b.cx + Math.cos(a) * b.r,
+        b.h + Math.sin(t * 0.5 + b.phase) * 2,
+        b.cz + Math.sin(a) * b.r
+      );
+      b.group.rotation.y = -a;                 // face the way it flies
+      const flap = Math.sin(t * 5 + b.phase) * 0.45;
+      b.wingL.rotation.z = flap;
+      b.wingR.rotation.z = -flap;
+    }
+  }
+
+  // little birdsong now and then
+  let nextChirp = 0;
+  function maybeChirp(t) {
+    if (t < nextChirp) return;
+    nextChirp = t + 7 + Math.random() * 12;
+    if (!playing) return;
+    blip(1500 + Math.random() * 300, 0.07, 0.025);
+    setTimeout(() => blip(1850 + Math.random() * 250, 0.06, 0.02), 130);
+    setTimeout(() => blip(1650, 0.05, 0.015), 260);
+  }
+
   // ---------------------------------------------------------------- block targeting (voxel raycast)
   function raycastBlock(maxDist) {
     const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
@@ -912,14 +1089,14 @@
 
   // ---------------------------------------------------------------- tiny sound effects
   let audioCtx = null;
-  function blip(freq, duration) {
+  function blip(freq, duration, volume) {
     try {
       audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
       const o = audioCtx.createOscillator();
       const g = audioCtx.createGain();
       o.type = "square";
       o.frequency.value = freq;
-      g.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      g.gain.setValueAtTime(volume || 0.08, audioCtx.currentTime);
       g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
       o.connect(g).connect(audioCtx.destination);
       o.start();
@@ -980,6 +1157,7 @@
     crosshair.style.display = on ? "block" : "none";
     hotbarEl.style.display = on ? "flex" : "none";
     invEl.style.display = on ? "block" : "none";
+    hungerEl.style.display = on ? "block" : "none";
     if (!on) for (const k in keys) keys[k] = false;
   }
 
@@ -989,12 +1167,13 @@
       const p = canvas.requestPointerLock();
       if (p && p.catch) p.catch(() => {});
     } catch (e) { /* fall through to drag-look mode */ }
-    // If the pointer didn't actually lock shortly after, use drag-look mode.
+    // If the game hasn't started shortly after (no pointerlockchange event
+    // arrived), start anyway — with drag-look controls if we have no lock.
     setTimeout(() => {
-      if (document.pointerLockElement !== canvas) {
-        dragLook = true;
+      if (!playing) {
+        dragLook = document.pointerLockElement !== canvas;
         setPlaying(true);
-        toast("Drag the mouse to look around 👀");
+        if (dragLook) toast("Drag the mouse to look around 👀");
       }
     }, 300);
   }
@@ -1053,6 +1232,7 @@
     if (!playing) return;
     keys[e.code] = true;
     if (e.code === "Space") e.preventDefault();
+    if (e.code === "KeyE") eat();
     if (e.code.startsWith("Digit")) {
       const n = parseInt(e.code.slice(5), 10);
       if (n >= 1 && n <= HOTBAR.length) selectSlot(n - 1);
@@ -1117,7 +1297,12 @@
 
     updateAnimals(dt, now / 1000);
     updateButterflies(now / 1000);
+    updateBirds(now / 1000);
     updateParticles(dt);
+    updateSunShadow();
+    updateChunkVisibility(dt);
+    maybeChirp(now / 1000);
+    sky.position.copy(camera.position);       // the sky always surrounds you
 
     // clouds drift gently and loop around the world
     for (const cloud of clouds) {
@@ -1150,7 +1335,9 @@
   spawnPlayer();
   spawnAnimals(55);
   spawnButterflies(36);
+  spawnBirds(10);
   buildHotbar();
   updateInv();
+  updateHunger();
   requestAnimationFrame(frame);
 })();
