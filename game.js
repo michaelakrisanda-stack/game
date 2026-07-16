@@ -305,124 +305,264 @@
   // One InstancedMesh per block type, holding every block that touches air.
   const cubeGeo = new THREE.BoxGeometry(1, 1, 1);
 
-  // ---- pixel-art textures, painted on 16x16 canvases -------------------
-  function makeTexture(paint) {
+  // ---- detailed textures, painted on 64x64 canvases --------------------
+  const maxAniso = renderer.capabilities.getMaxAnisotropy();
+
+  function makeTexture(paint, pixelArt) {
     const c = document.createElement("canvas");
-    c.width = c.height = 16;
-    paint(c.getContext("2d"));
+    c.width = c.height = pixelArt ? 16 : 64;
+    paint(c.getContext("2d"), c.width);
     const tex = new THREE.CanvasTexture(c);
-    tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
+    if (pixelArt) {
+      tex.magFilter = THREE.NearestFilter;
+      tex.minFilter = THREE.NearestFilter;
+    } else {
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.anisotropy = maxAniso;
+    }
     return tex;
   }
 
-  // fill with a base color, then sprinkle darker/lighter pixels for grain
-  function speckle(ctx, base, dark, light, amount) {
+  const rnd = Math.random;
+
+  // fill with a base color, then sprinkle grain dots from a palette
+  function speckle(ctx, base, colors, amount, size) {
     ctx.fillStyle = base;
-    ctx.fillRect(0, 0, 16, 16);
+    ctx.fillRect(0, 0, 64, 64);
+    grain(ctx, colors, amount, size);
+  }
+  function grain(ctx, colors, amount, size) {
     for (let i = 0; i < amount; i++) {
-      ctx.fillStyle = Math.random() < 0.5 ? dark : light;
-      ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+      ctx.fillStyle = colors[Math.floor(rnd() * colors.length)];
+      ctx.fillRect(Math.floor(rnd() * 64), Math.floor(rnd() * 64),
+                   1 + Math.floor(rnd() * (size || 1)), 1 + Math.floor(rnd() * (size || 1)));
+    }
+  }
+  // soft translucent blotches for mottled surfaces
+  function blotch(ctx, color, alpha, count, rMin, rMax) {
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    for (let i = 0; i < count; i++) {
+      const r = rMin + rnd() * (rMax - rMin);
+      ctx.beginPath();
+      ctx.arc(rnd() * 64, rnd() * 64, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  // darker toward the bottom, like soil in shade
+  function shadeDown(ctx, strength) {
+    const g = ctx.createLinearGradient(0, 0, 0, 64);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(0,0,0," + strength + ")");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 64, 64);
+  }
+
+  function paintGrassTop(ctx) {
+    ctx.fillStyle = "#4f9e3a"; ctx.fillRect(0, 0, 64, 64);
+    blotch(ctx, "#66b84e", 0.25, 10, 5, 13);
+    blotch(ctx, "#3f8a2e", 0.2, 8, 4, 10);
+    const blades = ["#3f8a2e", "#5cb547", "#6ac455", "#478f35", "#7ed06a"];
+    for (let i = 0; i < 1500; i++) {
+      ctx.fillStyle = blades[Math.floor(rnd() * blades.length)];
+      ctx.fillRect(Math.floor(rnd() * 64), Math.floor(rnd() * 64), 1, 2 + Math.floor(rnd() * 3));
+    }
+  }
+
+  function paintDirtBase(ctx) {
+    speckle(ctx, "#8a5d36", ["#7a5230", "#996b3f", "#6b4726", "#a3744a"], 1300, 2);
+    for (let i = 0; i < 14; i++) {                    // little pebbles
+      const x = rnd() * 60, y = rnd() * 60;
+      ctx.fillStyle = "#5f4020"; ctx.fillRect(x, y, 3, 3);
+      ctx.fillStyle = "#a87c4d"; ctx.fillRect(x, y, 1, 1);
     }
   }
 
   const texs = {
-    grassTop: makeTexture(ctx => speckle(ctx, "#5dbb46", "#4c9e39", "#71d158", 70)),
+    grassTop: makeTexture(paintGrassTop),
     grassSide: makeTexture(ctx => {
-      speckle(ctx, "#9b6a3d", "#855931", "#ad7a49", 55);
-      ctx.fillStyle = "#5dbb46";                  // grass hanging over the top edge
-      for (let x = 0; x < 16; x++) ctx.fillRect(x, 0, 1, 2 + Math.floor(Math.random() * 3));
-    }),
-    dirt: makeTexture(ctx => speckle(ctx, "#9b6a3d", "#855931", "#ad7a49", 70)),
-    stone: makeTexture(ctx => {
-      speckle(ctx, "#8f8f8f", "#7a7a7a", "#a1a1a1", 60);
-      ctx.fillStyle = "#6e6e6e";                  // little cracks
-      for (let i = 0; i < 4; i++) {
-        const x = Math.floor(Math.random() * 12), y = Math.floor(Math.random() * 14);
-        ctx.fillRect(x, y, 3, 1); ctx.fillRect(x + 2, y + 1, 2, 1);
+      paintDirtBase(ctx);
+      shadeDown(ctx, 0.22);
+      ctx.fillStyle = "#4f9e3a"; ctx.fillRect(0, 0, 64, 5);   // grass lip
+      const greens = ["#3f8a2e", "#5cb547", "#478f35"];
+      for (let x = 0; x < 64; x++) {                          // hanging blades
+        ctx.fillStyle = greens[Math.floor(rnd() * greens.length)];
+        ctx.fillRect(x, 0, 1, 5 + Math.floor(rnd() * 8));
       }
     }),
-    sand: makeTexture(ctx => speckle(ctx, "#f2e2a0", "#e0cd85", "#faedb8", 80)),
+    dirt: makeTexture(ctx => { paintDirtBase(ctx); shadeDown(ctx, 0.08); }),
+    stone: makeTexture(ctx => {
+      speckle(ctx, "#8d8d90", ["#818186", "#98989c", "#77777c", "#a2a2a6"], 900, 2);
+      blotch(ctx, "#6f6f75", 0.14, 14, 4, 12);
+      blotch(ctx, "#a8a8ac", 0.12, 10, 3, 9);
+      ctx.strokeStyle = "#5f5f66"; ctx.lineWidth = 1;         // cracks
+      for (let i = 0; i < 6; i++) {
+        let x = rnd() * 64, y = rnd() * 64;
+        ctx.beginPath(); ctx.moveTo(x, y);
+        for (let s = 0; s < 5; s++) {
+          x += (rnd() - 0.5) * 14; y += (rnd() - 0.3) * 10;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    }),
+    sand: makeTexture(ctx => {
+      speckle(ctx, "#ecd9a0", ["#f7e9b8", "#dcc78d", "#e5d095"], 900, 1);
+      ctx.strokeStyle = "rgba(190,160,100,0.5)"; ctx.lineWidth = 1;
+      for (let y = 4; y < 64; y += 7) {                       // wind ripples
+        ctx.beginPath(); ctx.moveTo(0, y);
+        for (let x = 0; x <= 64; x += 8)
+          ctx.lineTo(x, y + Math.sin(x * 0.4 + y) * 2);
+        ctx.stroke();
+      }
+    }),
     woodSide: makeTexture(ctx => {
-      speckle(ctx, "#7a5230", "#684526", "#8a5f39", 30);
-      ctx.fillStyle = "#5e3d20";                  // bark stripes
-      for (const x of [1, 4, 7, 10, 13]) ctx.fillRect(x, 0, 1, 16);
+      ctx.fillStyle = "#6e4a2a"; ctx.fillRect(0, 0, 64, 64);
+      for (let x = 0; x < 64; x++) {                          // bark ridges
+        const shade = 0.12 + 0.1 * Math.sin(x * 0.7);
+        ctx.fillStyle = "rgba(0,0,0," + Math.max(0, shade) + ")";
+        ctx.fillRect(x, 0, 1, 64);
+      }
+      ctx.strokeStyle = "#55371d"; ctx.lineWidth = 1;
+      for (let i = 0; i < 9; i++) {                           // deep grooves
+        const x0 = rnd() * 64;
+        ctx.beginPath(); ctx.moveTo(x0, 0);
+        for (let y = 0; y <= 64; y += 8)
+          ctx.lineTo(x0 + Math.sin(y * 0.3 + x0) * 2, y);
+        ctx.stroke();
+      }
+      grain(ctx, ["#7d5530", "#5c3c20"], 250, 1);
     }),
     woodTop: makeTexture(ctx => {
-      speckle(ctx, "#a9743f", "#93622f", "#b8834d", 20);
-      ctx.strokeStyle = "#7a5230";                // growth rings
-      for (const r of [2, 5, 8]) ctx.strokeRect(8 - r / 2, 8 - r / 2, r, r);
+      speckle(ctx, "#9c6b3d", ["#93622f", "#a8794a"], 300, 1);
+      for (let r = 4; r < 46; r += 6) {                       // growth rings
+        ctx.strokeStyle = r % 12 < 6 ? "#7a5230" : "#8a5f39";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(32, 32, r / 1.4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#6e4a2a"; ctx.fillRect(30, 30, 4, 4);  // heartwood
     }),
     leaves: makeTexture(ctx => {
-      speckle(ctx, "#2e9e3e", "#227a2f", "#3cb84e", 90);
-      ctx.fillStyle = "#1b5e24";                  // deep shadow holes
-      for (let i = 0; i < 10; i++)
-        ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+      ctx.fillStyle = "#2e7d32"; ctx.fillRect(0, 0, 64, 64);
+      blotch(ctx, "#1b5e20", 0.3, 16, 3, 9);
+      blotch(ctx, "#43a047", 0.3, 14, 3, 8);
+      const tones = ["#1b5e20", "#43a047", "#66bb6a", "#388e3c", "#81c784"];
+      for (let i = 0; i < 700; i++) {                         // leaf clusters
+        ctx.fillStyle = tones[Math.floor(rnd() * tones.length)];
+        ctx.fillRect(Math.floor(rnd() * 63), Math.floor(rnd() * 63), 2, 2);
+      }
+      ctx.fillStyle = "#143d16";                              // shadow holes
+      for (let i = 0; i < 40; i++)
+        ctx.fillRect(Math.floor(rnd() * 62), Math.floor(rnd() * 62), 2, 2);
     }),
     planks: makeTexture(ctx => {
-      speckle(ctx, "#c9a05a", "#b58c48", "#d6af6b", 30);
-      ctx.fillStyle = "#9a7434";                  // board seams
-      for (const y of [3, 7, 11, 15]) ctx.fillRect(0, y, 16, 1);
-      ctx.fillRect(4, 0, 1, 4); ctx.fillRect(11, 4, 1, 4); ctx.fillRect(6, 8, 1, 4);
+      ctx.fillStyle = "#c09055"; ctx.fillRect(0, 0, 64, 64);
+      for (let b = 0; b < 4; b++) {                           // four boards
+        const y = b * 16;
+        ctx.fillStyle = "rgba(" + (rnd() < 0.5 ? "255,255,255" : "60,30,0") + ",0.06)";
+        ctx.fillRect(0, y, 64, 16);
+        ctx.strokeStyle = "rgba(150,105,60,0.8)"; ctx.lineWidth = 1;
+        for (let i = 0; i < 7; i++) {                         // wood grain
+          const gy = y + 2 + rnd() * 12;
+          ctx.beginPath(); ctx.moveTo(rnd() * 20, gy);
+          ctx.bezierCurveTo(20, gy + rnd() * 2 - 1, 44, gy + rnd() * 2 - 1, 64 - rnd() * 20, gy);
+          ctx.stroke();
+        }
+        ctx.fillStyle = "#7d5a2f";                            // seams + joints
+        ctx.fillRect(0, y + 14, 64, 2);
+        const jx = (b % 2) * 32 + 16;
+        ctx.fillRect(jx, y, 2, 14);
+        ctx.fillStyle = "#5c4326";                            // nails
+        ctx.fillRect(jx - 6, y + 6, 2, 2); ctx.fillRect(jx + 6, y + 6, 2, 2);
+      }
     }),
     brick: makeTexture(ctx => {
-      ctx.fillStyle = "#b8452f"; ctx.fillRect(0, 0, 16, 16);
-      ctx.fillStyle = "#cfc0b4";                  // mortar
-      for (const y of [0, 4, 8, 12]) ctx.fillRect(0, y, 16, 1);
-      for (let row = 0; row < 4; row++) {
-        const off = row % 2 ? 4 : 0;
-        for (let x = off; x < 16; x += 8) ctx.fillRect(x, row * 4, 1, 4);
+      ctx.fillStyle = "#cfc6ba"; ctx.fillRect(0, 0, 64, 64);  // mortar
+      const reds = ["#b2452c", "#a63e28", "#bd4f33", "#c25a3d", "#9e3a25"];
+      for (let row = 0; row < 8; row++) {
+        const off = (row % 2) * 8;
+        for (let col = -1; col < 5; col++) {
+          const bx = col * 16 + off, by = row * 8;
+          ctx.fillStyle = reds[Math.floor(rnd() * reds.length)];
+          ctx.fillRect(bx + 1, by + 1, 14, 6);
+          ctx.fillStyle = "rgba(255,255,255,0.18)";           // sunlit edge
+          ctx.fillRect(bx + 1, by + 1, 14, 1);
+          ctx.fillStyle = "rgba(0,0,0,0.22)";                 // shaded edge
+          ctx.fillRect(bx + 1, by + 6, 14, 1);
+        }
       }
-      ctx.fillStyle = "#a03a26";                  // brick shading
-      for (let i = 0; i < 20; i++)
-        ctx.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 16), 1, 1);
+      grain(ctx, ["rgba(0,0,0,0.15)", "rgba(255,255,255,0.1)"], 300, 1);
     }),
     water: makeTexture(ctx => {
-      speckle(ctx, "#3f76e4", "#3567cc", "#5b8ef0", 50);
-      ctx.fillStyle = "#7fabff";                  // sparkles
-      for (let i = 0; i < 6; i++)
-        ctx.fillRect(Math.floor(Math.random() * 14), Math.floor(Math.random() * 16), 2, 1);
+      ctx.fillStyle = "#3a6fd8"; ctx.fillRect(0, 0, 64, 64);
+      blotch(ctx, "#2c56b0", 0.18, 12, 5, 14);
+      const waves = ["#5b8ee8", "#7fabf2", "#4a7de0"];
+      for (let i = 0; i < 40; i++) {                          // wave streaks
+        ctx.fillStyle = waves[Math.floor(rnd() * waves.length)];
+        ctx.fillRect(Math.floor(rnd() * 50), Math.floor(rnd() * 64), 6 + rnd() * 16, 1);
+      }
+      ctx.fillStyle = "rgba(220,236,255,0.7)";                // sparkles
+      for (let i = 0; i < 12; i++)
+        ctx.fillRect(Math.floor(rnd() * 60), Math.floor(rnd() * 64), 2, 1);
+    }),
+    snow: makeTexture(ctx => {
+      speckle(ctx, "#f2f6fa", ["#e4edf5", "#ffffff", "#dde8f0"], 700, 2);
+      blotch(ctx, "#dbe7f2", 0.3, 10, 5, 12);
+      ctx.fillStyle = "#ffffff";                              // sparkles
+      for (let i = 0; i < 30; i++)
+        ctx.fillRect(Math.floor(rnd() * 64), Math.floor(rnd() * 64), 1, 1);
     }),
     craftTop: makeTexture(ctx => {
-      speckle(ctx, "#a97d4b", "#93683a", "#b98d5b", 25);
-      ctx.fillStyle = "#5d3f1f";                  // 2x2 crafting grid
-      ctx.fillRect(3, 3, 10, 1); ctx.fillRect(3, 12, 10, 1);
-      ctx.fillRect(3, 3, 1, 10); ctx.fillRect(12, 3, 1, 10);
-      ctx.fillRect(7, 3, 2, 10); ctx.fillRect(3, 7, 10, 2);
+      speckle(ctx, "#a97d4b", ["#93683a", "#b98d5b"], 400, 1);
+      ctx.fillStyle = "#4a3315";                              // crafting grid
+      ctx.fillRect(12, 12, 40, 3); ctx.fillRect(12, 49, 40, 3);
+      ctx.fillRect(12, 12, 3, 40); ctx.fillRect(49, 12, 3, 40);
+      ctx.fillRect(30, 12, 4, 40); ctx.fillRect(12, 30, 40, 4);
     }),
-    snow: makeTexture(ctx => speckle(ctx, "#f4f8fb", "#dde8f0", "#ffffff", 40)),
+    craftSide: makeTexture(ctx => {
+      speckle(ctx, "#a97d4b", ["#8a6238", "#b98d5b"], 400, 1);
+      ctx.fillStyle = "#4a3315";
+      ctx.fillRect(0, 0, 64, 4); ctx.fillRect(0, 58, 64, 6);
+      ctx.fillStyle = "#c0392b";                              // saw
+      ctx.fillRect(10, 16, 18, 10);
+      ctx.fillStyle = "#8f2c20";
+      for (let x = 10; x < 28; x += 4) ctx.fillRect(x, 26, 2, 3);
+      ctx.fillStyle = "#95a5a6";                              // hammer
+      ctx.fillRect(38, 18, 16, 8);
+      ctx.fillStyle = "#7d6547";
+      ctx.fillRect(44, 26, 4, 20);
+    }),
     flowerRed: makeTexture(ctx => {
       ctx.fillStyle = "#3e8e2f"; ctx.fillRect(7, 8, 2, 8);    // stem
       ctx.fillStyle = "#e74c3c"; ctx.fillRect(4, 2, 8, 7);    // petals
       ctx.fillStyle = "#ffd54f"; ctx.fillRect(7, 4, 2, 2);    // center
-    }),
+    }, true),
     flowerYellow: makeTexture(ctx => {
       ctx.fillStyle = "#3e8e2f"; ctx.fillRect(7, 8, 2, 8);
       ctx.fillStyle = "#f1c40f"; ctx.fillRect(4, 2, 8, 7);
       ctx.fillStyle = "#e67e22"; ctx.fillRect(7, 4, 2, 2);
-    }),
+    }, true),
     wildGrass: makeTexture(ctx => {
-      ctx.fillStyle = "#4da83c";                          // blades of grass
+      ctx.fillStyle = "#4da83c";
       for (const [x, h] of [[2, 9], [5, 12], [8, 10], [11, 13], [13, 8]])
         ctx.fillRect(x, 16 - h, 2, h);
       ctx.fillStyle = "#63c24f";
       for (const [x, h] of [[4, 7], [7, 11], [10, 6]])
         ctx.fillRect(x, 16 - h, 1, h);
-    }),
-    craftSide: makeTexture(ctx => {
-      speckle(ctx, "#a97d4b", "#8a6238", "#b98d5b", 25);
-      ctx.fillStyle = "#5d3f1f";
-      ctx.fillRect(0, 0, 16, 1); ctx.fillRect(0, 14, 16, 2);
-      ctx.fillStyle = "#c0392b";                  // saw
-      ctx.fillRect(3, 4, 4, 3);
-      ctx.fillStyle = "#95a5a6";                  // hammer
-      ctx.fillRect(9, 5, 4, 2); ctx.fillRect(10, 7, 2, 5);
-    }),
+    }, true),
   };
+
   // water shimmers by slowly sliding its texture
   texs.water.wrapS = texs.water.wrapT = THREE.RepeatWrapping;
 
-  const lam = (tex, opts) => new THREE.MeshLambertMaterial(Object.assign({ map: tex }, opts));
+  // blocks use the texture itself as a bump map, so surfaces catch the light
+  const lam = (tex, opts) => new THREE.MeshPhongMaterial(Object.assign({
+    map: tex, bumpMap: tex, bumpScale: 0.06, shininess: 4, specular: 0x1c1c1c,
+  }, opts));
   // BoxGeometry face order: +x, -x, top, bottom, +z, -z
   const materials = {
     1: [lam(texs.grassSide), lam(texs.grassSide), lam(texs.grassTop),
@@ -481,14 +621,26 @@
 
     const m4 = new THREE.Matrix4();
     const meshes = [];
+    // natural blocks get a subtle per-block tint so fields don't repeat
+    const TINT = { 1: 0.09, 2: 0.07, 3: 0.06, 4: 0.05, 6: 0.11, 11: 0.04, 14: 0.1 };
+    const tintColor = new THREE.Color();
     for (const t in positions) {
       const pts = positions[t];
       const geo = BLOCKS[t].flower ? flowerGeo : cubeGeo;
       const mesh = new THREE.InstancedMesh(geo, materials[t], pts.length / 3);
+      const tint = TINT[t];
       for (let i = 0; i < pts.length; i += 3) {
         m4.makeTranslation(pts[i] + 0.5, pts[i + 1] + 0.5, pts[i + 2] + 0.5);
         mesh.setMatrixAt(i / 3, m4);
+        if (tint) {
+          // deterministic hash of the block position, stable across redraws
+          const h = ((pts[i] * 73856093) ^ (pts[i + 1] * 19349663) ^ (pts[i + 2] * 83492791)) >>> 0;
+          const v = 1 - tint + ((h % 1000) / 1000) * tint * 2;
+          tintColor.setRGB(v, v, v);
+          mesh.setColorAt(i / 3, tintColor);
+        }
       }
+      if (tint && mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
       mesh.instanceMatrix.needsUpdate = true;
       if (!BLOCKS[t].flower && !BLOCKS[t].water) {
         mesh.castShadow = true;
