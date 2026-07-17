@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Tractor Tycoon 🚜</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    font-family: "Comic Sans MS", "Chalkboard SE", "Comic Neue", sans-serif;
+    background: #7ec850;
+    user-select: none; -webkit-user-select: none; touch-action: none;
+  }
+  #wrap {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(#8fd85f, #6db843);
+  }
+  canvas { display: block; border-radius: 6px; }
+
+  /* ---------- start screen ---------- */
+  #overlay {
+    position: fixed; inset: 0; z-index: 20;
+    background: linear-gradient(#ffe97a, #ffc94d 40%, #8fd85f 40.2%, #6db843);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; overflow-y: auto; padding: 12px 0;
+  }
+  #overlay h1 {
+    font-size: 52px; margin: 0 0 8px; color: #fff;
+    text-shadow: 3px 3px 0 #b06a1f, 6px 6px 0 rgba(0,0,0,0.2);
+    letter-spacing: 1px;
+  }
+  #overlay .card {
+    background: rgba(255,255,255,0.93); border-radius: 20px;
+    padding: 18px 30px; box-shadow: 0 8px 0 rgba(0,0,0,0.15);
+    font-size: 19px; color: #333; line-height: 1.85; max-width: 560px;
+  }
+  #overlay .card b { color: #1b7a1b; }
+  #startBtn {
+    margin-top: 20px; font-family: inherit; font-size: 28px; font-weight: bold;
+    padding: 12px 56px; border: none; border-radius: 16px;
+    background: #3ecf3e; color: #fff; cursor: pointer;
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.25); box-shadow: 0 6px 0 #2a8f2a;
+  }
+  #startBtn:active { transform: translateY(4px); box-shadow: 0 2px 0 #2a8f2a; }
+  @media (max-height: 600px) {
+    #overlay { justify-content: flex-start; }
+    #overlay h1 { font-size: 32px; }
+    #overlay .card { font-size: 14px; line-height: 1.6; padding: 10px 18px; }
+    #startBtn { font-size: 20px; padding: 8px 36px; margin-top: 10px; }
+  }
+
+  /* ---------- HUD ---------- */
+  .hud {
+    position: fixed; z-index: 5; pointer-events: none;
+    background: rgba(0,0,0,0.55); color: #fff;
+    border: 2px solid rgba(255,255,255,0.4); border-radius: 12px;
+    padding: 7px 14px; font-size: 18px; display: none; white-space: pre;
+  }
+  #money { top: 12px; left: 12px; font-size: 24px; color: #ffe14d; }
+  #bag   { top: 12px; right: 12px; }
+  #goal  { bottom: 12px; left: 12px; font-size: 14px; max-width: 46vw; white-space: normal; }
+  #tip   {
+    bottom: 12px; right: 12px; font-size: 14px; max-width: 40vw; white-space: normal;
+    background: rgba(27,90,27,0.7);
+  }
+
+  /* ---------- shop panel ---------- */
+  #shop {
+    position: fixed; z-index: 10; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff8e7; border-radius: 20px; border: 4px solid #b06a1f;
+    box-shadow: 0 10px 0 rgba(0,0,0,0.2);
+    padding: 16px 22px; display: none; text-align: center; min-width: 320px;
+  }
+  #shop h2 { margin: 0 0 4px; color: #b06a1f; }
+  #shop .hint { font-size: 13px; color: #888; margin-bottom: 10px; }
+  .buyBtn {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    width: 100%; box-sizing: border-box;
+    font-family: inherit; font-size: 19px; margin: 7px 0;
+    padding: 9px 16px; border: none; border-radius: 14px;
+    background: #ffd98a; box-shadow: 0 4px 0 #d9a640; cursor: pointer;
+  }
+  .buyBtn:active { transform: translateY(3px); box-shadow: 0 1px 0 #d9a640; }
+  .buyBtn:disabled { opacity: 0.45; cursor: default; }
+  .buyBtn small { font-size: 13px; color: #6b5518; }
+  #closeShop {
+    margin-top: 8px; font-family: inherit; font-size: 16px;
+    padding: 7px 26px; border: none; border-radius: 12px;
+    background: #3ecf3e; color: #fff; box-shadow: 0 4px 0 #2a8f2a; cursor: pointer;
+  }
+
+  /* ---------- sale receipt ---------- */
+  #receipt {
+    position: fixed; z-index: 10; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff; border-radius: 18px; border: 4px dashed #3ecf3e;
+    box-shadow: 0 10px 0 rgba(0,0,0,0.2);
+    padding: 16px 26px; display: none; text-align: center; min-width: 300px;
+    font-size: 18px;
+  }
+  #receipt h2 { margin: 0 0 6px; color: #1b7a1b; }
+  #receipt table { margin: 0 auto 8px; border-collapse: collapse; font-size: 17px; }
+  #receipt td { padding: 2px 10px; text-align: left; }
+  #receipt td:last-child { text-align: right; }
+  #receipt .total { border-top: 2px solid #ccc; font-weight: bold; }
+  #receipt .profit { color: #1b7a1b; font-weight: bold; font-size: 20px; }
+  #closeReceipt {
+    margin-top: 8px; font-family: inherit; font-size: 16px;
+    padding: 7px 26px; border: none; border-radius: 12px;
+    background: #3ecf3e; color: #fff; box-shadow: 0 4px 0 #2a8f2a; cursor: pointer;
+  }
+
+  /* ---------- toast ---------- */
+  #toast {
+    position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.65); color: #fff; z-index: 8;
+    padding: 8px 22px; border-radius: 14px; font-size: 19px;
+    display: none; pointer-events: none; text-align: center;
+  }
+
+  /* ---------- touch controls ---------- */
+  #pad {
+    position: fixed; bottom: 70px; left: 18px; z-index: 6;
+    display: none; grid-template-columns: repeat(3, 54px);
+    grid-template-rows: repeat(3, 54px); gap: 4px; opacity: 0.85;
+  }
+  .padBtn {
+    border: none; border-radius: 12px; background: rgba(0,0,0,0.45);
+    color: #fff; font-size: 24px; touch-action: none;
+  }
+  .padBtn:active { background: rgba(0,0,0,0.7); }
+  #actBtn {
+    position: fixed; bottom: 86px; right: 22px; z-index: 6;
+    width: 88px; height: 88px; border-radius: 50%;
+    border: none; background: #3ecf3e; color: #fff;
+    font-family: inherit; font-size: 17px; font-weight: bold;
+    box-shadow: 0 6px 0 #2a8f2a; display: none; touch-action: none;
+  }
+  #actBtn:active { transform: translateY(4px); box-shadow: 0 2px 0 #2a8f2a; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="game"></canvas></div>
+
+<div id="money" class="hud"></div>
+<div id="bag" class="hud"></div>
+<div id="goal" class="hud"></div>
+<div id="tip" class="hud"></div>
+<div id="toast"></div>
+
+<div id="shop">
+  <h2>🏪 Seed Shop</h2>
+  <div class="hint">Spend money now to grow MORE money later!</div>
+  <div id="shopItems"></div>
+  <button id="closeShop">🚜 Back to farming!</button>
+</div>
+
+<div id="receipt">
+  <h2>🎪 SOLD! Cha-ching! 💰</h2>
+  <div id="receiptBody"></div>
+  <button id="closeReceipt">🥳 Keep farming!</button>
+</div>
+
+<div id="pad">
+  <div></div><button class="padBtn" data-d="up">⬆️</button><div></div>
+  <button class="padBtn" data-d="left">⬅️</button><div></div><button class="padBtn" data-d="right">➡️</button>
+  <div></div><button class="padBtn" data-d="down">⬇️</button><div></div>
+</div>
+<button id="actBtn">GO!</button>
+
+<div id="overlay">
+  <h1>🚜 TRACTOR TYCOON 🌽</h1>
+  <div class="card">
+    You're the boss of your very own farm business!<br>
+    ⌨️ <b>Arrow keys</b> (or W A S D) to drive your tractor<br>
+    🌱 Drive to a brown plot and press <b>SPACE</b> to plant a seed<br>
+    ⏰ Wait for crops to grow big… then <b>SPACE</b> to pick them!<br>
+    🎪 Drive to the <b>Farmer's Market</b> and press <b>SPACE</b> to sell<br>
+    🏪 Visit the <b>Seed Shop</b> to buy more seeds with your money<br>
+    💡 <b>Big idea:</b> sell your crops for MORE than the seeds cost —<br>
+    that extra money is called <b>PROFIT</b>! 💰
+  </div>
+  <button id="startBtn">▶ START FARMING</button>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   TRACTOR TYCOON — a tiny farm-business game for kids.
+   Plant seeds, grow crops, sell at the market, earn profit!
+   ============================================================ */
+
+const W = 960, H = 640;
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+canvas.width = W; canvas.height = H;
+
+function fitCanvas() {
+  const s = Math.min(innerWidth / W, innerHeight / H);
+  canvas.style.width  = (W * s) + "px";
+  canvas.style.height = (H * s) + "px";
+}
+addEventListener("resize", fitCanvas); fitCanvas();
+
+/* ---------------- crops & economics ---------------- */
+const CROPS = {
+  carrot:  { name: "Carrot",  emoji: "🥕", seed: 2, sell: 5,  grow: 8,  color: "#ff8c1a" },
+  corn:    { name: "Corn",    emoji: "🌽", seed: 4, sell: 11, grow: 15, color: "#ffd91a" },
+  pumpkin: { name: "Pumpkin", emoji: "🎃", seed: 8, sell: 24, grow: 25, color: "#ff7518" },
+};
+const CROP_KEYS = Object.keys(CROPS);
+
+const state = {
+  money: 10,
+  seeds: { carrot: 3, corn: 0, pumpkin: 0 },
+  selectedSeed: "carrot",
+  trailer: [],            // harvested crops: {type, seedCost}
+  trailerMax: 6,
+  hasBigTrailer: false,
+  totalEarned: 0,
+  totalSpent: 0,
+  spentSinceSale: 0,      // seed money spent since last market visit
+  badges: [],
+};
+
+/* ---------------- world layout ---------------- */
+const PLOT = 92, GAP = 14;
+const plots = [];
+{
+  const cols = 4, rows = 3;
+  const fx = W / 2 - (cols * PLOT + (cols - 1) * GAP) / 2;
+  const fy = 175;
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++)
+      plots.push({
+        x: fx + c * (PLOT + GAP), y: fy + r * (PLOT + GAP),
+        crop: null,        // {type, planted, seedCost}
+      });
+}
+const SHOP   = { x: 60,      y: 60, w: 190, h: 96, label: "🏪 Seed Shop" };
+const MARKET = { x: W - 250, y: 60, w: 190, h: 96, label: "🎪 Farmer's Market" };
+
+const tractor = { x: W / 2, y: H - 90, dir: 1, angle: 0, speed: 240, bob: 0 };
+
+/* ---------------- input ---------------- */
+const keys = {};
+addEventListener("keydown", e => {
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+  if (k === " " || k === "e" || k === "enter") { e.preventDefault(); doAction(); }
+  if (shopOpen) {
+    if (k === "1") buySeed("carrot");
+    if (k === "2") buySeed("corn");
+    if (k === "3") buySeed("pumpkin");
+    if (k === "escape") closeShop();
+  }
+  if (receiptOpen && (k === "escape")) closeReceipt();
+});
+addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+const touchDir = { up: false, down: false, left: false, right: false };
+for (const b of document.querySelectorAll(".padBtn")) {
+  const d = b.dataset.d;
+  const on  = e => { e.preventDefault(); touchDir[d] = true; };
+  const off = e => { e.preventDefault(); touchDir[d] = false; };
+  b.addEventListener("pointerdown", on);
+  b.addEventListener("pointerup", off);
+  b.addEventListener("pointerleave", off);
+  b.addEventListener("pointercancel", off);
+}
+document.getElementById("actBtn").addEventListener("pointerdown", e => { e.preventDefault(); doAction(); });
+if (("ontouchstart" in window) || navigator.maxTouchPoints > 0) {
+  document.getElementById("pad").style.display = "grid";
+  document.getElementById("actBtn").style.display = "block";
+}
+
+/* ---------------- tiny sounds ---------------- */
+let audio = null;
+function beep(freq, dur = 0.12, type = "square", vol = 0.15, slide = 0) {
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = type; o.frequency.value = freq;
+    if (slide) o.frequency.linearRampToValueAtTime(freq + slide, audio.currentTime + dur);
+    g.gain.value = vol;
+    g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + dur);
+    o.connect(g); g.connect(audio.destination);
+    o.start(); o.stop(audio.currentTime + dur);
+  } catch (e) { /* no sound, no problem */ }
+}
+const sndPlant   = () => beep(500, 0.1, "sine", 0.2, 200);
+const sndHarvest = () => { beep(650, 0.09, "square", 0.12); setTimeout(() => beep(880, 0.12, "square", 0.12), 80); };
+const sndCash    = () => { beep(880, 0.08, "square", 0.15); setTimeout(() => beep(1170, 0.08, "square", 0.15), 90); setTimeout(() => beep(1560, 0.16, "square", 0.15), 180); };
+const sndBuy     = () => beep(400, 0.1, "sine", 0.15, -120);
+const sndNope    = () => beep(180, 0.2, "sawtooth", 0.1, -60);
+const sndBadge   = () => { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => beep(f, 0.15, "square", 0.14), i * 110)); };
+
+/* ---------------- helpers ---------------- */
+function toast(msg, ms = 2200) {
+  const t = document.getElementById("toast");
+  t.innerHTML = msg; t.style.display = "block";
+  clearTimeout(toast._h);
+  toast._h = setTimeout(() => t.style.display = "none", ms);
+}
+function near(zone, pad = 30) {
+  return tractor.x > zone.x - pad && tractor.x < zone.x + zone.w + pad &&
+         tractor.y > zone.y - pad && tractor.y < zone.y + zone.h + pad;
+}
+function nearestPlot() {
+  let best = null, bd = 1e9;
+  for (const p of plots) {
+    const d = Math.hypot(tractor.x - (p.x + PLOT / 2), tractor.y - (p.y + PLOT / 2));
+    if (d < bd) { bd = d; best = p; }
+  }
+  return bd < 75 ? best : null;
+}
+function fmt$(n) { return "$" + n; }
+
+/* ---------------- particles & floaty text ---------------- */
+const parts = [], floaties = [];
+function burst(x, y, emoji, n = 8) {
+  for (let i = 0; i < n; i++)
+    parts.push({ x, y, vx: (Math.random() - 0.5) * 220, vy: -Math.random() * 220 - 60,
+                 life: 1, emoji });
+}
+function floaty(x, y, text, color = "#fff") {
+  floaties.push({ x, y, text, color, life: 1.4 });
+}
+
+/* ---------------- actions ---------------- */
+let shopOpen = false, receiptOpen = false, started = false;
+
+function doAction() {
+  if (!started || shopOpen || receiptOpen) return;
+
+  if (near(SHOP))   { openShop(); return; }
+  if (near(MARKET)) { sellAll();  return; }
+
+  const p = nearestPlot();
+  if (!p) return;
+
+  if (p.crop && stageOf(p.crop) >= 3) {            // harvest!
+    if (state.trailer.length >= state.trailerMax) {
+      toast("🚜 Trailer is FULL! Go sell at the 🎪 market!"); sndNope(); return;
+    }
+    const c = CROPS[p.crop.type];
+    state.trailer.push({ type: p.crop.type, seedCost: p.crop.seedCost });
+    burst(p.x + PLOT / 2, p.y + PLOT / 2, c.emoji);
+    floaty(p.x + PLOT / 2, p.y, "+1 " + c.emoji);
+    p.crop = null;
+    sndHarvest();
+  } else if (p.crop) {
+    toast("⏰ Still growing… be patient, farmer!");
+  } else {                                          // plant!
+    if (state.seeds[state.selectedSeed] <= 0) {
+      const withAny = CROP_KEYS.find(k => state.seeds[k] > 0);
+      if (withAny) { state.selectedSeed = withAny; }
+      else { toast("😮 No seeds left! Buy more at the 🏪 Seed Shop!"); sndNope(); return; }
+    }
+    const type = state.selectedSeed;
+    state.seeds[type]--;
+    p.crop = { type, planted: performance.now() / 1000, seedCost: CROPS[type].seed };
+    burst(p.x + PLOT / 2, p.y + PLOT / 2, "🌱", 5);
+    sndPlant();
+  }
+  updateHUD();
+}
+
+function stageOf(crop) {  // 0..3 (3 = ready to pick)
+  const t = (performance.now() / 1000 - crop.planted) / CROPS[crop.type].grow;
+  if (t >= 1) return 3;
+  return Math.floor(t * 3);
+}
+
+/* ---------------- shop ---------------- */
+function openShop() {
+  shopOpen = true;
+  renderShop();
+  document.getElementById("shop").style.display = "block";
+}
+function closeShop() {
+  shopOpen = false;
+  document.getElementById("shop").style.display = "none";
+}
+document.getElementById("closeShop").addEventListener("click", closeShop);
+
+function renderShop() {
+  const div = document.getElementById("shopItems");
+  let html = "";
+  CROP_KEYS.forEach((k, i) => {
+    const c = CROPS[k];
+    const profit = c.sell - c.seed;
+    html += `<button class="buyBtn" data-buy="${k}" ${state.money < c.seed ? "disabled" : ""}>
+      <span>${c.emoji} ${c.name} seed — <b>${fmt$(c.seed)}</b></span>
+      <small>sells for ${fmt$(c.sell)} (+${fmt$(profit)} profit!)<br>grows in ${c.grow}s · press ${i + 1}</small>
+    </button>`;
+  });
+  if (!state.hasBigTrailer) {
+    html += `<button class="buyBtn" data-buy="trailer" ${state.money < 50 ? "disabled" : ""}>
+      <span>🛻 BIG trailer — <b>$50</b></span>
+      <small>carry 12 crops instead of 6!<br>(spending to earn more = investing)</small>
+    </button>`;
+  }
+  html += `<div style="font-size:14px;color:#666;margin-top:6px">You have <b style="color:#b8860b">${fmt$(state.money)}</b></div>`;
+  div.innerHTML = html;
+  for (const b of div.querySelectorAll("[data-buy]"))
+    b.addEventListener("click", () => buySeed(b.dataset.buy));
+}
+
+function buySeed(k) {
+  if (k === "trailer") {
+    if (state.hasBigTrailer || state.money < 50) { sndNope(); return; }
+    state.money -= 50; state.totalSpent += 50; state.spentSinceSale += 50;
+    state.hasBigTrailer = true; state.trailerMax = 12;
+    toast("🛻 BIG trailer! You invested in your business!");
+    sndBuy();
+  } else {
+    const c = CROPS[k];
+    if (state.money < c.seed) { toast("😅 Not enough money for that yet!"); sndNope(); return; }
+    state.money -= c.seed; state.totalSpent += c.seed; state.spentSinceSale += c.seed;
+    state.seeds[k]++;
+    state.selectedSeed = k;
+    floaty(SHOP.x + SHOP.w / 2, SHOP.y + SHOP.h, "-" + fmt$(c.seed), "#ff6b6b");
+    sndBuy();
+  }
+  renderShop(); updateHUD();
+}
+
+/* ---------------- market ---------------- */
+function sellAll() {
+  if (state.trailer.length === 0) {
+    toast("🧺 Trailer is empty! Grow some crops first 🌱"); sndNope(); return;
+  }
+  const counts = {}, costs = {};
+  let revenue = 0, cost = 0;
+  for (const item of state.trailer) {
+    counts[item.type] = (counts[item.type] || 0) + 1;
+    costs[item.type]  = (costs[item.type]  || 0) + item.seedCost;
+    revenue += CROPS[item.type].sell;
+    cost    += item.seedCost;
+  }
+  const profit = revenue - cost;
+  state.money += revenue;
+  state.totalEarned += revenue;
+  state.trailer = [];
+  state.spentSinceSale = 0;
+
+  let rows = "";
+  for (const k of Object.keys(counts)) {
+    const c = CROPS[k];
+    rows += `<tr><td>${c.emoji} ${c.name} × ${counts[k]}</td><td>${fmt$(counts[k] * c.sell)}</td></tr>`;
+  }
+  document.getElementById("receiptBody").innerHTML = `
+    <table>
+      ${rows}
+      <tr class="total"><td>You earned</td><td>${fmt$(revenue)}</td></tr>
+      <tr><td>Seeds cost you</td><td>-${fmt$(cost)}</td></tr>
+      <tr class="total profit"><td>PROFIT 🎉</td><td>${fmt$(profit)}</td></tr>
+    </table>
+    <div style="font-size:15px;color:#555">Profit = money in − money out.<br>That's how a business grows! 💪</div>`;
+  receiptOpen = true;
+  document.getElementById("receipt").style.display = "block";
+  burst(MARKET.x + MARKET.w / 2, MARKET.y + MARKET.h, "💰", 12);
+  floaty(MARKET.x + MARKET.w / 2, MARKET.y, "+" + fmt$(revenue), "#ffe14d");
+  sndCash();
+  checkBadges();
+  updateHUD();
+}
+function closeReceipt() {
+  receiptOpen = false;
+  document.getElementById("receipt").style.display = "none";
+}
+document.getElementById("closeReceipt").addEventListener("click", closeReceipt);
+
+/* ---------------- badges (goals) ---------------- */
+const BADGES = [
+  { at: 25,  name: "🥉 Sprout Boss" },
+  { at: 60,  name: "🥈 Harvest Hero" },
+  { at: 150, name: "🥇 Market Master" },
+  { at: 300, name: "🏆 FARM TYCOON!" },
+];
+function checkBadges() {
+  for (const b of BADGES) {
+    if (state.money >= b.at && !state.badges.includes(b.name)) {
+      state.badges.push(b.name);
+      toast(`🎉 NEW BADGE: <b>${b.name}</b> — you reached ${fmt$(b.at)}!`, 3500);
+      burst(tractor.x, tractor.y - 40, "🎉", 14);
+      sndBadge();
+    }
+  }
+}
+
+/* ---------------- tips ---------------- */
+const TIPS = [
+  "💡 Buying seeds costs money now, but earns MORE money later. That's <b>investing</b>!",
+  "💡 Carrots grow fast but earn a little. Pumpkins are slow but earn a LOT. Which is better? You choose — that's a <b>trade-off</b>!",
+  "💡 Money you earn minus money you spend = <b>PROFIT</b>.",
+  "💡 Plant lots of plots at once so crops grow while you're busy — smart farmers don't wait around!",
+  "💡 Save up $50 for the BIG trailer — spending on tools that help you earn more is a great <b>investment</b>.",
+  "💡 If you spend ALL your money, you can't buy seeds. Always keep a little saved!",
+];
+let tipIndex = 0;
+setInterval(() => {
+  tipIndex = (tipIndex + 1) % TIPS.length;
+  if (started) document.getElementById("tip").innerHTML = TIPS[tipIndex];
+}, 12000);
+
+/* ---------------- HUD ---------------- */
+function updateHUD() {
+  document.getElementById("money").textContent = "💰 " + fmt$(state.money);
+  const seedTxt = CROP_KEYS.map(k => `${CROPS[k].emoji}${state.seeds[k]}`).join("  ");
+  const bagCount = {};
+  for (const it of state.trailer) bagCount[it.type] = (bagCount[it.type] || 0) + 1;
+  const bagTxt = state.trailer.length
+    ? Object.keys(bagCount).map(k => `${CROPS[k].emoji}${bagCount[k]}`).join(" ")
+    : "empty";
+  document.getElementById("bag").textContent =
+    `🌱 Seeds:  ${seedTxt}\n🧺 Trailer: ${bagTxt}  (${state.trailer.length}/${state.trailerMax})`;
+  const nextBadge = BADGES.find(b => !state.badges.includes(b.name));
+  document.getElementById("goal").innerHTML = nextBadge
+    ? `🎯 Goal: save up <b>${fmt$(nextBadge.at)}</b> to earn <b>${nextBadge.name}</b>` +
+      (state.badges.length ? `<br>Badges: ${state.badges.join(" ")}` : "")
+    : `🏆 You earned EVERY badge! Total earned: ${fmt$(state.totalEarned)} — you're a real tycoon!`;
+}
+
+/* ---------------- drawing ---------------- */
+function drawEmoji(e, x, y, size, angle = 0, flip = false) {
+  ctx.save();
+  ctx.translate(x, y);
+  if (angle) ctx.rotate(angle);
+  if (flip) ctx.scale(-1, 1);
+  ctx.font = size + "px serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(e, 0, 0);
+  ctx.restore();
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+const flowers = [];
+for (let i = 0; i < 26; i++)
+  flowers.push({ x: Math.random() * W, y: Math.random() * H,
+                 e: ["🌼", "🌸", "🌻", "🍄"][Math.floor(Math.random() * 4)] });
+// keep flowers off the field & stalls
+const clearZones = [ { x: 180, y: 150, w: 600, h: 340 }, SHOP, MARKET ];
+for (const f of flowers)
+  while (clearZones.some(z => f.x > z.x - 30 && f.x < z.x + z.w + 30 && f.y > z.y - 30 && f.y < z.y + z.h + 30))
+    { f.x = Math.random() * W; f.y = Math.random() * H; }
+
+function drawStall(z, roofA, roofB, sign) {
+  // roof
+  ctx.fillStyle = "#8a5a2b";
+  ctx.fillRect(z.x + 8, z.y + 26, z.w - 16, z.h - 26);
+  ctx.fillStyle = "#6d451f";
+  ctx.fillRect(z.x + 8, z.y + 26, z.w - 16, 8);
+  // striped awning
+  const stripes = 6, sw = z.w / stripes;
+  for (let i = 0; i < stripes; i++) {
+    ctx.fillStyle = i % 2 ? roofA : roofB;
+    ctx.fillRect(z.x + i * sw, z.y, sw, 26);
+  }
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 17px 'Comic Sans MS', sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(sign, z.x + z.w / 2, z.y + z.h / 2 + 10);
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+
+  /* ----- update tractor ----- */
+  if (started && !shopOpen && !receiptOpen) {
+    let dx = 0, dy = 0;
+    if (keys["arrowleft"]  || keys["a"] || touchDir.left)  dx -= 1;
+    if (keys["arrowright"] || keys["d"] || touchDir.right) dx += 1;
+    if (keys["arrowup"]    || keys["w"] || touchDir.up)    dy -= 1;
+    if (keys["arrowdown"]  || keys["s"] || touchDir.down)  dy += 1;
+    if (dx || dy) {
+      const len = Math.hypot(dx, dy);
+      tractor.x += dx / len * tractor.speed * dt;
+      tractor.y += dy / len * tractor.speed * dt;
+      tractor.x = Math.max(30, Math.min(W - 30, tractor.x));
+      tractor.y = Math.max(30, Math.min(H - 30, tractor.y));
+      if (dx) tractor.dir = Math.sign(dx);
+      tractor.bob += dt * 22;
+      tractor.angle = Math.sin(tractor.bob) * 0.06;
+    } else tractor.angle *= 0.8;
+  }
+
+  /* ----- draw world ----- */
+  ctx.fillStyle = "#7ec850";
+  ctx.fillRect(0, 0, W, H);
+  // dirt path across the bottom + up the sides to stalls
+  ctx.fillStyle = "#d9b98a";
+  ctx.fillRect(0, H - 130, W, 70);
+  ctx.fillRect(90, 160, 70, H - 220);
+  ctx.fillRect(W - 160, 160, 70, H - 220);
+
+  for (const f of flowers) drawEmoji(f.e, f.x, f.y, 20);
+
+  drawStall(SHOP,   "#ff9f43", "#ffe0b2", "🏪 SEED SHOP");
+  drawStall(MARKET, "#ff6b6b", "#ffe0e0", "🎪 MARKET");
+
+  // plots
+  const t = now / 1000;
+  for (const p of plots) {
+    ctx.fillStyle = "#9c6b3c";
+    roundRect(p.x, p.y, PLOT, PLOT, 12); ctx.fill();
+    ctx.strokeStyle = "#7a5230"; ctx.lineWidth = 3; ctx.stroke();
+    // soil rows
+    ctx.strokeStyle = "rgba(0,0,0,0.12)"; ctx.lineWidth = 4;
+    for (let i = 1; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(p.x + 10, p.y + i * PLOT / 4);
+      ctx.lineTo(p.x + PLOT - 10, p.y + i * PLOT / 4);
+      ctx.stroke();
+    }
+    if (p.crop) {
+      const st = stageOf(p.crop);
+      const cx = p.x + PLOT / 2, cy = p.y + PLOT / 2;
+      if (st === 0) drawEmoji("🌱", cx, cy, 30);
+      else if (st === 1) drawEmoji("🌿", cx, cy, 42);
+      else if (st === 2) drawEmoji("🌿", cx, cy - 4, 54);
+      else {
+        const bounce = Math.sin(t * 5) * 4;
+        drawEmoji(CROPS[p.crop.type].emoji, cx, cy - 6 + bounce, 56);
+        drawEmoji("✨", p.x + PLOT - 18, p.y + 16, 18 + Math.sin(t * 7) * 4);
+      }
+      // growth bar
+      if (st < 3) {
+        const frac = Math.min(1, (t - p.crop.planted) / CROPS[p.crop.type].grow);
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        roundRect(p.x + 12, p.y + PLOT - 14, PLOT - 24, 8, 4); ctx.fill();
+        ctx.fillStyle = "#7CFC00";
+        roundRect(p.x + 12, p.y + PLOT - 14, (PLOT - 24) * frac, 8, 4); ctx.fill();
+      }
+    }
+  }
+
+  /* ----- prompt bubble ----- */
+  if (started && !shopOpen && !receiptOpen) {
+    let msg = null;
+    if (near(SHOP)) msg = "Press SPACE to shop 🏪";
+    else if (near(MARKET)) msg = state.trailer.length ? "Press SPACE to SELL! 💰" : "Market! Bring crops to sell 🧺";
+    else {
+      const p = nearestPlot();
+      if (p) {
+        if (!p.crop) msg = state.seeds[state.selectedSeed] > 0 || CROP_KEYS.some(k => state.seeds[k] > 0)
+          ? `Press SPACE to plant ${CROPS[state.selectedSeed].emoji}` : "No seeds! Visit the 🏪 shop";
+        else if (stageOf(p.crop) >= 3) msg = `Press SPACE to pick ${CROPS[p.crop.type].emoji}!`;
+      }
+    }
+    if (msg) {
+      ctx.font = "bold 17px 'Comic Sans MS', sans-serif";
+      const w = ctx.measureText(msg).width + 28;
+      const bx = Math.max(8, Math.min(W - w - 8, tractor.x - w / 2));
+      const by = tractor.y - 78;
+      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      roundRect(bx, by, w, 32, 14); ctx.fill();
+      ctx.strokeStyle = "#3ecf3e"; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = "#333"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(msg, bx + w / 2, by + 17);
+    }
+  }
+
+  /* ----- tractor (+ trailer) ----- */
+  const full = state.trailer.length;
+  if (full > 0) {
+    drawEmoji("🛒", tractor.x - tractor.dir * 46, tractor.y + 8, 34, 0, tractor.dir < 0);
+    const show = Math.min(3, full);
+    for (let i = 0; i < show; i++)
+      drawEmoji(CROPS[state.trailer[state.trailer.length - 1 - i].type].emoji,
+                tractor.x - tractor.dir * (40 + i * 8), tractor.y - 6 - (i % 2) * 6, 18);
+  }
+  drawEmoji("🚜", tractor.x, tractor.y, 56, tractor.angle, tractor.dir > 0);
+
+  /* ----- particles & floaties ----- */
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt;
+    if (p.life <= 0) { parts.splice(i, 1); continue; }
+    ctx.globalAlpha = Math.max(0, p.life);
+    drawEmoji(p.emoji, p.x, p.y, 22);
+    ctx.globalAlpha = 1;
+  }
+  for (let i = floaties.length - 1; i >= 0; i--) {
+    const f = floaties[i];
+    f.life -= dt; f.y -= 40 * dt;
+    if (f.life <= 0) { floaties.splice(i, 1); continue; }
+    ctx.globalAlpha = Math.min(1, f.life);
+    ctx.font = "bold 26px 'Comic Sans MS', sans-serif";
+    ctx.textAlign = "center";
+    ctx.lineWidth = 5; ctx.strokeStyle = "rgba(0,0,0,0.5)";
+    ctx.strokeText(f.text, f.x, f.y);
+    ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
+    ctx.globalAlpha = 1;
+  }
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---------------- start ---------------- */
+document.getElementById("startBtn").addEventListener("click", () => {
+  document.getElementById("overlay").style.display = "none";
+  started = true;
+  for (const el of ["money", "bag", "goal", "tip"])
+    document.getElementById(el).style.display = "block";
+  document.getElementById("tip").innerHTML = TIPS[0];
+  updateHUD();
+  toast("🚜 Drive to a brown plot and press SPACE to plant your first carrot!", 4000);
+  try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+});
+</script>
+</body>
+</html>

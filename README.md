@@ -1,3 +1,23 @@
+# 🎮 Our Games
+
+Two games you can play on your own computer — no internet needed!
+
+- ⛏️ **Block World** — open `index.html` (a Minecraft-style world, see below)
+- 🚜 **Tractor Tycoon** — open `farm.html` (run your own farm business!)
+
+## 🚜 Tractor Tycoon
+
+Drive your tractor, plant seeds, grow crops, and sell them at the
+Farmer's Market! Learn how a real business works:
+
+- 🌱 Buy seeds at the **Seed Shop** (spending money to make money = **investing**)
+- 🥕 Carrots grow fast but earn a little; 🎃 pumpkins are slow but earn a LOT (**trade-offs**!)
+- 🎪 Sell at the market and read your receipt: money earned − seed costs = **PROFIT**
+- 🏆 Earn badges as your farm business grows, and save up for the BIG trailer!
+
+**Controls:** Arrow keys (or WASD) to drive, **SPACE** to plant / pick / sell / shop.
+Touch buttons appear on tablets and phones.
+
 # ⛏️ Block World 🌳
 
 A Minecraft-style game you can play on your own computer — no internet needed!
@@ -63,8 +83,9 @@ That's it. No installing, no internet needed after you download it.
 
 ## 📁 What's in this folder
 
-- `index.html` — the page you double-click to play
-- `game.js` — the game code (the world, walking, building...)
+- `index.html` — double-click to play **Block World**
+- `farm.html` — double-click to play **Tractor Tycoon** 🚜
+- `game.js` — the Block World game code (the world, walking, building...)
 - `three.min.js` — the 3D graphics library ([Three.js](https://threejs.org/))
 
 Have fun building! 🏰
