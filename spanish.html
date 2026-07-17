@@ -463,6 +463,19 @@ function say(text, { rate = 0.8, lang = "es-ES" } = {}) {
 const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (!SpeechRec) document.getElementById("micWarning").style.display = "block";
 
+// Grab the microphone once and hold on to it for the whole play session.
+// Without this, pages opened from a file:// address get re-prompted for
+// permission on every single recognition attempt.
+let micStream = null;
+async function warmUpMic() {
+  if (micStream || !navigator.mediaDevices?.getUserMedia) return;
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    micStream = null;
+  }
+}
+
 function normalize(s) {
   return s.toLowerCase()
     .normalize("NFD").replace(/[̀-ͯ]/g, "")   // strip accents
@@ -608,6 +621,7 @@ micBtn.onclick = async () => {
   }
   micBusy = true;
   speechSynthesis.cancel();
+  await warmUpMic();
   micBtn.classList.add("listening");
   setResult("Listening… say “" + w.es + "”! 🎤", "");
 
