@@ -1,8 +1,12 @@
-# ⛏️ Block World 🌳
+# 🔫 Block Rivals 🏆
 
-A Minecraft-style game you can play on your own computer — no internet needed!
+A Rivals-style arena shooter you can play on your own computer — no internet needed!
 
-![Block World](https://img.shields.io/badge/made%20with-blocks-brightgreen)
+It's a giant game of **laser-paint tag**: you and your Blue team bot buddies
+battle the Red team. Nobody gets hurt — tagged players just pop into confetti
+and respawn!
+
+![Block Rivals](https://img.shields.io/badge/made%20with-paint-blueviolet)
 
 ## 🎮 How to play it on your computer
 
@@ -18,53 +22,46 @@ That's it. No installing, no internet needed after you download it.
 | What you press | What happens |
 |---|---|
 | Move the mouse | Look around |
-| **W A S D** (or arrow keys) | Walk |
-| **SPACE** | Jump (and swim up in water!) |
-| **Left click** | Break a block 👊 |
-| **Right click** | Place a block 🧱 |
-| **Number keys** (or scroll wheel) | Choose which block to build with |
-| **Click an animal** | Hunt it for meat, eggs & feathers 🍖 |
-| **Click a villager** | They just say hi — villagers are friends 👋 |
-| **E** | Eat meat or eggs when you're hungry 🍗 |
-| **Q** | Switch tools: fist 👊 / sword 🗡️ / pickaxe ⛏️ |
-| **ESC** | Pause and see the menu |
+| **Left click** | Shoot 🎨 (hold it down for the Blaster!) |
+| **W A S D** (or arrow keys) | Run |
+| **SPACE** | Jump — press it again in the air to **double jump!** 🐇 |
+| **SHIFT** | ⚡ Dash (super speedy — recharges in 3 seconds) |
+| **R** | Reload your weapon |
+| **1 2 3 4** | Swap weapons |
+| **TAB** (hold) | See the scoreboard 🏆 |
+| **ESC** | Pause and take a break |
 
-## 🌍 Fun things to know
+## 🔫 Your weapons
 
-- Every world is gigantic (256×256 blocks!) with hills, lakes, beaches, and forests.
-- **Real shadows!** The sun casts shadows from trees, hills, animals — and you
-  can watch them stretch across the land.
-- **Meadows full of flowers and wild grass** 🌼 with **butterflies** fluttering
-  around, **birds** circling in the sky, and birdsong now and then.
-- **You get hungry** as you explore — the drumstick bar 🍗 shows how hungry.
-  Press **E** to eat meat or eggs. Too hungry and you'll walk slowly!
-- **Monsters!** Goofy zombies shamble after you and bonk you (-1 ❤️), and
-  scary creepers sneak up silently, hiss, flash, and BLOW A CRATER (-3 ❤️
-  if you're close!). Fight back with the sword — press **Q** to grab it.
-- **Hearts** ❤️ show your health. They come back when your belly is full.
-  If you run out you just take a nap and wake up back home — that's all.
-- **Pickaxe** breaks stone and brick in one hit; fists need three.
-- Walking feels real: your view gently bobs and you hear soft footsteps.
-- **Hunt animals** to collect 🍖 meat, 🥚 eggs, and 🪶 feathers — your food
-  pouch in the corner keeps count. New animals wander in over time.
-- **Mountains** ⛰️ reach up into the sky — the tallest ones have snowy tops!
-- **Caves** 🕳️ twist and turn under the ground. Dig down or find an entrance
-  on a hillside and go exploring (they're bright inside, not scary).
-- Every block has real **pixel textures** — grass, bark, bricks, sparkly water.
-- The **sun** shines and fluffy **clouds** drift across the sky.
-- Blocks burst into **crumbs** when you smash them!
-- **Pigs 🐷, sheep 🐑, and chickens 🐔** wander around — click one to make it hop!
-- **Villagers** live here too — the little people with big noses and robes.
-- You can build with grass, dirt, stone, sand, wood, leaves, planks, brick,
-  **crafting tables** (key 9), and **snow** (key 0).
-- Your world **saves itself automatically** — close the game and your
-  buildings will still be there next time!
-- Want to start over? Click **"Make a brand new world"** on the menu.
+| Key | Weapon | What it's like |
+|---|---|---|
+| **1** | 🔫 Blaster | Fast pew-pew-pew — hold the button down! |
+| **2** | 💥 Scatter | One big blast of 7 paint pellets — great up close |
+| **3** | ⚡ Zap Bow | Slow but SUPER strong — one zap nearly tags anyone |
+| **4** | 🎨 Paint Bomb | Lobs a paint ball that goes **KABOOM** in a big splash |
+
+Aim for the head — headshots count **double**! 💫
+
+## 🏟️ Fun things to know
+
+- It's **Blue team vs Red team** — you play with 3 bot buddies (Zippy, Doodle
+  and Pixel) against 4 rivals (NoobMaster, Turbo, Sparkle and BlockNinja).
+- **First team to 30 tags wins the round!** Then a new round starts by itself.
+- The arena has a purple **party hill** in the middle, crate stairs to climb,
+  lookout **towers**, and walls to hide behind.
+- Tagged players burst into **confetti** 🎊 and respawn at their base — this
+  game is all pretend, like tag at recess.
+- If you get splatted, wait 3 seconds and you're back in!
+- **Hide for a few seconds** and your health comes back on its own. 💚
+- You're **safe for 2 seconds** after respawning, so no spawn-camping meanies.
+- The bots run, strafe, hop, and duck behind cover — they're sneaky!
+- Watch the **kill feed** in the corner to see who's tagging who.
+- Everything is made of happy blocks, with a big sun and drifting clouds. ☀️
 
 ## 📁 What's in this folder
 
 - `index.html` — the page you double-click to play
-- `game.js` — the game code (the world, walking, building...)
+- `game.js` — the game code (the arena, the bots, the paint...)
 - `three.min.js` — the 3D graphics library ([Three.js](https://threejs.org/))
 
-Have fun building! 🏰
+Have fun tagging! 🎨
