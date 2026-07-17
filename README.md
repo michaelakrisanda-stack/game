@@ -27,7 +27,7 @@ That's it. No installing, no internet needed after you download it.
 | **SPACE** | Jump — press it again in the air to **double jump!** 🐇 |
 | **SHIFT** | ⚡ Dash (super speedy — recharges in 3 seconds) |
 | **R** | Reload your weapon |
-| **1 2 3 4** | Swap weapons |
+| **1 2 3 4 5** | Swap weapons |
 | **TAB** (hold) | See the scoreboard 🏆 |
 | **ESC** | Pause and take a break |
 
@@ -39,6 +39,7 @@ That's it. No installing, no internet needed after you download it.
 | **2** | 💥 Scatter | One big blast of 7 paint pellets — great up close |
 | **3** | ⚡ Zap Bow | Slow but SUPER strong — one zap nearly tags anyone |
 | **4** | 🎨 Paint Bomb | Lobs a paint ball that goes **KABOOM** in a big splash |
+| **5** | 🌀 Minigun | Hold the button — the barrels rev up, then BRRRR! 60 paintballs of chaos |
 
 Aim for the head — headshots count **double**! 💫
 
